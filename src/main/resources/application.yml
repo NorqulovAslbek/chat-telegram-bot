@@ -1,10 +1,10 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/user-service
-    username: jdbc_test
-    password: 123456
+    username: postgres
+    password: 1224
+  jpa:
+    hibernate:
+      ddl-auto: update
 
-
-telegrambots:
-   enabled: true
 
