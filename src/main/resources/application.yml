@@ -3,8 +3,7 @@ spring:
     url: jdbc:postgresql://localhost:5432/user-service
     username: jdbc_test
     password: 123456
-
-
-telegrambots:
-   enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: update
 
