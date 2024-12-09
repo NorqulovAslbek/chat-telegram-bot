@@ -1,13 +1,5 @@
 package com.example.chattelegrambot
 
-import BaseEntity
-import Conversation
-import Message
-import Operator
-import Queue
-import Rating
-import Users
-import WorkSession
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
@@ -187,5 +179,11 @@ interface ConversationRepository : BaseRepository<Conversation> {
     )
     fun findConversationByOperator(chatId: Long): Conversation?
 
-
+    @Query(
+        """
+        select c from conversations c
+        where c.users.chatId = ?1 and c.endDate is null and c.deleted = false
+    """
+    )
+    fun findConversationByUser(chatId: Long): Conversation?
 }

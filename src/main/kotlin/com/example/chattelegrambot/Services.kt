@@ -1,11 +1,5 @@
 package com.example.chattelegrambot
 
-import Conversation
-import Message
-import Operator
-import Queue
-import Users
-import WorkSession
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 
