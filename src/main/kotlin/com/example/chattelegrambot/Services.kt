@@ -2,31 +2,70 @@ package com.example.chattelegrambot
 
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
+import java.util.*
 
 
 interface UserService {
-
+    fun findUser(userChatId: Long): Users? //
+    fun addUser(user: RegisterUser, chatId: Long, langType: Language) //
+    fun findMessagesByUser(userChatId: Long): List<String>? //
+    fun addQueue(chatId: Long) //
     fun addRatingScore(score: Int, chatId: Long)
     fun findConversationByUser(userChatId: Long): Conversation?
     fun deleteMessage(chatId: Long)
     fun findMessageByUser(chatId: Long, message: String): Message?
+    fun deleteQueue(chatId: Long) ///
+    fun addMessage(chatId: Long, content: String, messageId: Int) ///
+    fun addConversation(chatId: Long, operator: Operator) ///
+    fun addRating(user: Users, operator: Operator, conversation: Conversation) ///
+
 }
 
 interface OperatorService {
+
+
+
+    fun addConversation(chatId: Long, user: Users)
+    fun addMessage(chatId: Long, content: String, userMessage: String, userChatId: Long, operatorMessageId: Int)
+    fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
     fun findAvailableOperator(langType: Language): Operator?
     fun startWork(chatId: Long, langType: Language): Users?
+    fun finishWork(chatId: Long): Long?
+    fun finishConversation(chatId: Long): Long?
+    fun findConversationByOperator(chatId: Long): Conversation?
 
 }
 
 @Service
 class UserServiceImpl(
-    private val userRepository: UserRepository,
+
     private val messageRepository: MessageRepository,
+    private val userRepository: UserRepository,
     private val queueRepository: QueueRepository,
     private val conversationRepository: ConversationRepository,
     private val ratingRepository: RatingRepository
 ) : UserService {
+    override fun findUser(userChatId: Long): Users? {
+        return userRepository.findUsersByChatId(userChatId)
+    }
+
+    override fun addUser(user: RegisterUser, chatId: Long, langType: Language) {
+        userRepository.save(
+            Users(chatId, user.fullName!!, user.phoneNumber!!, langType)
+        )
+    }
+
+    override fun findMessagesByUser(userChatId: Long): List<String>? {
+        return messageRepository.findMessagesByUser(userChatId)
+    }
+
+    override fun addQueue(chatId: Long) {
+        userRepository.findUsersByChatId(chatId)?.let {
+            queueRepository.existUser(chatId) ?: queueRepository.save(Queue(it, it.langType))
+        }
+    }
+
     override fun addRatingScore(score: Int, chatId: Long) {
         ratingRepository.findRating(chatId)?.let {
             it.score = score
@@ -47,7 +86,30 @@ class UserServiceImpl(
     override fun findMessageByUser(chatId: Long, message: String): Message? {
         return messageRepository.findMessageByUser(chatId, message)
     }
+
+    @Transactional
+    override fun deleteQueue(chatId: Long) {
+        userRepository.findUsersByChatId(chatId)?.let {
+            queueRepository.deleteUserFromQueue(it.chatId, it.langType)
+        }
+    }
+
+    override fun addMessage(chatId: Long, content: String, messageId: Int) {
+        messageRepository.save(Message(null, chatId, SenderType.USER, content, messageId))
+    }
+
+    override fun addConversation(chatId: Long, operator: Operator) {
+        userRepository.findUsersByChatId(chatId)?.let {
+            conversationRepository.save(Conversation(it, operator, it.langType))
+        }
+    }
+
+    override fun addRating(user: Users, operator: Operator, conversation: Conversation) {
+        ratingRepository.save(Rating(conversation, user, operator))
+    }
+
 }
+
 
 @Service
 class OperatorServiceImpl(
@@ -58,6 +120,32 @@ class OperatorServiceImpl(
     private val messageRepository: MessageRepository,
     private val userService: UserService
 ) : OperatorService {
+    override fun addConversation(chatId: Long, user: Users) {
+        operatorRepository.findOperatorByChatId(chatId)?.let {
+            conversationRepository.save(Conversation(user, it, user.langType))
+        }
+    }
+
+    override fun addMessage(
+        chatId: Long,
+        content: String,
+        userMessage: String,
+        userChatId: Long,
+        operatorMessageId: Int
+    ) {
+        conversationRepository.findConversationByOperator(chatId)?.let { item ->
+            messageRepository.save(Message(item, chatId, SenderType.OPERATOR, content, operatorMessageId))
+            messageRepository.findMessageByUser(userChatId, userMessage)?.let {
+                it.conversation = item
+                messageRepository.save(it)
+            }
+        }
+    }
+
+    @Transactional
+    override fun changeStatus(chatId: Long, status: Status) {
+        operatorRepository.changeStatus(chatId, status)
+    }
     override fun findOperator(operatorChatId: Long): Operator? {
         return operatorRepository.findOperatorByChatId(operatorChatId)
     }
@@ -74,5 +162,36 @@ class OperatorServiceImpl(
         }
         return queueRepository.findFirstUserFromQueue(langType)
     }
+    override fun finishWork(chatId: Long): Long? {
+        operatorRepository.findOperatorByChatId(chatId)?.let {
+            it.status = Status.OPERATOR_INACTIVE
+            operatorRepository.save(it)
+            val workSession = workSessionRepository.getTodayWorkSession(chatId)
+            val startDate = workSession.createdDate
+            val endDate = Date()
+            val workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
 
+            workSession.endDate = endDate
+            workSession.workHour = workHour.toInt()
+            workSession.salary = workHour.toBigDecimal() * HOURLY_RATE
+            workSessionRepository.save(workSession)
+        }
+        return finishConversation(chatId)
+    }
+
+    override fun finishConversation(chatId: Long): Long? {
+        var userChatId: Long? = null
+        operatorRepository.findOperatorByChatId(chatId)?.let { item ->
+            conversationRepository.findConversationByOperator(item.chatId)?.let {
+                userChatId = it.users.chatId
+                userService.addRating(it.users, it.operator, it)
+                it.endDate = Date()
+                conversationRepository.save(it)
+            }
+        }
+        return userChatId
+    }
+    override fun findConversationByOperator(chatId: Long): Conversation? {
+        return conversationRepository.findConversationByOperator(chatId)
+    }
 }

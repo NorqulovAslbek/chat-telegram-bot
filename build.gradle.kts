@@ -24,7 +24,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
-	implementation("org.telegram:telegrambots:6.9.7.1")
+	// https://mvnrepository.com/artifact/org.telegram/telegrambots
+	implementation("org.telegram:telegrambots-spring-boot-starter:6.7.0") // Versiyasini yangilang
 
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")

@@ -57,7 +57,14 @@ class BaseRepositoryImpl<T : BaseEntity>(
 @Repository
 interface UserRepository : BaseRepository<Users> {
 
-
+    @Query(
+        """
+        select u from users u
+         where u.deleted = false
+         and u.chatId =?1
+    """
+    )
+    fun findUsersByChatId(chatId: Long): Users?
 
 }//
 
@@ -72,6 +79,16 @@ interface OperatorRepository : BaseRepository<Operator> {
     )
     fun findOperatorByChatId(chatId: Long): Operator?
 
+
+    @Modifying
+    @Query(
+        """
+        update operators o set o.status = ?2
+        where o.chatId = ?1 and o.deleted = false
+    """
+    )
+    fun changeStatus(chatId: Long, status: Status)
+
     @Query(
         """
         select o from operators o
@@ -83,15 +100,18 @@ interface OperatorRepository : BaseRepository<Operator> {
     fun findAvailableOperator(language: Language): Operator?
 
 
-
 }
 
 @Repository
 interface WorkSessionRepository : BaseRepository<WorkSession> {
 
-
-
-
+    @Query(
+        """
+            select ws from workSessions ws
+            where ws.operator.chatId = ?1 and ws.endDate is null
+    """
+    )
+    fun getTodayWorkSession(chatId: Long): WorkSession
 }
 
 @Repository
@@ -107,14 +127,26 @@ interface QueueRepository : BaseRepository<Queue> {
     fun findFirstUserFromQueue(language: Language): Users?
 
 
+    @Query("""
+        select q from queues q
+        where q.users.chatId = ?1 and q.deleted = false
+    """)
+    fun existUser(chatId: Long) : Queue?
 
+    @Modifying
+    @Query(
+        """
+        update queues q set q.deleted = true 
+        where q.users.chatId = ?1 and q.language = ?2
+    """
+    )
+    fun deleteUserFromQueue(chatId: Long, language: Language)
 
 
 }
 
 @Repository
 interface RatingRepository : BaseRepository<Rating> {
-
     @Query(
         """
         select r from ratings r 
@@ -127,7 +159,13 @@ interface RatingRepository : BaseRepository<Rating> {
 @Repository
 interface MessageRepository : BaseRepository<Message> {
 
-
+    @Query(
+        """
+        select m.content from messages m
+        where m.senderId = ?1 and m.conversation is null and m.deleted = false
+    """
+    )
+    fun findMessagesByUser(chatId: Long): List<String>?
 
     @Query(
         """
@@ -149,10 +187,19 @@ interface MessageRepository : BaseRepository<Message> {
 @Repository
 interface ConversationRepository : BaseRepository<Conversation> {
 
+    @Query(
+        """
+        select c from conversations c
+        where c.operator.chatId = ?1 and c.endDate is null and c.deleted = false
+    """
+    )
+    fun findConversationByOperator(chatId: Long): Conversation?
 
-
-
-
+    @Query(
+        """
+        select c from conversations c
+        where c.users.chatId = ?1 and c.endDate is null and c.deleted = false
+    """
+    )
+    fun findConversationByUser(chatId: Long): Conversation?
 }
-
-
