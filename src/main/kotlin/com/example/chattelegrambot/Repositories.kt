@@ -1,3 +1,5 @@
+package com.example.chattelegrambot
+
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
@@ -5,10 +7,13 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
 import org.springframework.data.jpa.repository.support.JpaEntityInformation
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository
 import org.springframework.data.repository.NoRepositoryBean
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.stereotype.Repository
 
 @NoRepositoryBean
 interface BaseRepository<T : BaseEntity> : JpaRepository<T, Long>, JpaSpecificationExecutor<T> {
@@ -48,3 +53,113 @@ class BaseRepositoryImpl<T : BaseEntity>(
         return save(t).apply { entityManager.refresh(this) }
     }
 }
+
+@Repository
+interface UserRepository : BaseRepository<Users> {
+
+
+
+}//
+
+@Repository
+interface OperatorRepository : BaseRepository<Operator> {
+    @Query(
+        """
+        select o from operators o
+         where o.deleted = false
+         and o.chatId =?1
+    """
+    )
+    fun findOperatorByChatId(chatId: Long): Operator?
+
+    @Query(
+        """
+        select o from operators o
+        where o.deleted = false and o.language = ?1 and o.status = 'OPERATOR_ACTIVE'
+        order by o.id
+        limit 1
+    """
+    )
+    fun findAvailableOperator(language: Language): Operator?
+
+
+
+}
+
+@Repository
+interface WorkSessionRepository : BaseRepository<WorkSession> {
+
+
+
+
+}
+
+@Repository
+interface QueueRepository : BaseRepository<Queue> {
+    @Query(
+        """
+        select q.users from queues q
+        where q.deleted = false and q.language = ?1
+        order by q.createdDate asc
+        limit 1
+    """
+    )
+    fun findFirstUserFromQueue(language: Language): Users?
+
+
+
+
+
+}
+
+@Repository
+interface RatingRepository : BaseRepository<Rating> {
+
+    @Query(
+        """
+        select r from ratings r 
+        where r.users.chatId = ?1 and r.score is null
+    """
+    )
+    fun findRating(chatId: Long): Rating?
+}
+
+@Repository
+interface MessageRepository : BaseRepository<Message> {
+
+
+
+    @Query(
+        """
+        select m from messages m
+        where m.senderId = ?1 and m.conversation is null and m.content = ?2 and  m.deleted = false
+    """
+    )
+    fun findMessageByUser(chatId: Long, content: String): Message?
+
+    @Modifying
+    @Query("""
+        update messages m set m.deleted = true
+        where m.senderId = ?1 and m.conversation is null
+    """)
+    fun deleteMessagesByUser(chatId: Long)
+
+}
+
+@Repository
+interface ConversationRepository : BaseRepository<Conversation> {
+
+    @Query(
+        """
+        select c from conversations c
+        where c.users.chatId = ?1 and c.endDate is null and c.deleted = false
+    """
+    )
+    fun findConversationByUser(chatId: Long): Conversation?
+
+
+
+
+}
+
+
