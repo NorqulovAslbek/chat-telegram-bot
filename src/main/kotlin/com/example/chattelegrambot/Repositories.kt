@@ -149,13 +149,6 @@ interface MessageRepository : BaseRepository<Message> {
 @Repository
 interface ConversationRepository : BaseRepository<Conversation> {
 
-    @Query(
-        """
-        select c from conversations c
-        where c.users.chatId = ?1 and c.endDate is null and c.deleted = false
-    """
-    )
-    fun findConversationByUser(chatId: Long): Conversation?
 
 
 
