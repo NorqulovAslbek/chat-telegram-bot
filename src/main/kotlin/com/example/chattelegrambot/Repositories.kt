@@ -105,7 +105,13 @@ interface OperatorRepository : BaseRepository<Operator> {
 @Repository
 interface WorkSessionRepository : BaseRepository<WorkSession> {
 
-
+    @Query(
+        """
+            select ws from workSessions ws
+            where ws.operator.chatId = ?1 and ws.endDate is null
+    """
+    )
+    fun getTodayWorkSession(chatId: Long): WorkSession
 }
 
 @Repository
@@ -126,6 +132,16 @@ interface QueueRepository : BaseRepository<Queue> {
         where q.users.chatId = ?1 and q.deleted = false
     """)
     fun existUser(chatId: Long) : Queue?
+
+    @Modifying
+    @Query(
+        """
+        update queues q set q.deleted = true 
+        where q.users.chatId = ?1 and q.language = ?2
+    """
+    )
+    fun deleteUserFromQueue(chatId: Long, language: Language)
+
 
 }
 
