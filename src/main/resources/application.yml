@@ -1,5 +1,8 @@
+
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/user-service
-    username: jdbc_test
-    password: 123456
+    url: jdbc:postgresql://localhost:5432/tgbot
+    username: postgres
+    password: 123
+

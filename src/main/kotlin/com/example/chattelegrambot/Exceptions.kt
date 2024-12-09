@@ -18,7 +18,20 @@ sealed class DemoExceptionHandler : RuntimeException() {
         return BaseMessage(errorCode().code, message)
     }
 }
+sealed class BaseMessageSource {
 
+    abstract fun messageCode(): String
+
+    open fun getMessageArguments(): Array<Any?>? = null
+
+    fun getMessage(messageSource: ResourceBundleMessageSource): String {
+        return try {
+            messageSource.getMessage(messageCode(), getMessageArguments(), LocaleContextHolder.getLocale())
+        } catch (e: Exception) {
+            e.message ?: "Xabar topilmadi"
+        }
+    }
+}
 
 
 
