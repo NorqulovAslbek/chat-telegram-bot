@@ -1,10 +1,10 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/user-service
+    url: jdbc:postgresql://localhost:5432/chat_telegram_bot
     username: postgres
-    password: 1224
+    password: 1234
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
 
 
