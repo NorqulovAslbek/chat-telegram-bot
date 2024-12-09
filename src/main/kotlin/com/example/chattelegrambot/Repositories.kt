@@ -1,5 +1,13 @@
 package com.example.chattelegrambot
 
+import BaseEntity
+import Conversation
+import Message
+import Operator
+import Queue
+import Rating
+import Users
+import WorkSession
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Page
@@ -89,6 +97,17 @@ interface OperatorRepository : BaseRepository<Operator> {
     )
     fun changeStatus(chatId: Long, status: Status)
 
+    @Query(
+        """
+        select o from operators o
+        where o.deleted = false and o.language = ?1 and o.status = 'OPERATOR_ACTIVE'
+        order by o.id
+        limit 1
+    """
+    )
+    fun findAvailableOperator(language: Language): Operator?
+
+
 }
 
 @Repository
@@ -99,6 +118,16 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
 
 @Repository
 interface QueueRepository : BaseRepository<Queue> {
+    @Query(
+        """
+        select q.users from queues q
+        where q.deleted = false and q.language = ?1
+        order by q.createdDate asc
+        limit 1
+    """
+    )
+    fun findFirstUserFromQueue(language: Language): Users?
+
 
     @Query("""
         select q from queues q
@@ -110,7 +139,13 @@ interface QueueRepository : BaseRepository<Queue> {
 
 @Repository
 interface RatingRepository : BaseRepository<Rating> {
-
+    @Query(
+        """
+        select r from ratings r 
+        where r.users.chatId = ?1 and r.score is null
+    """
+    )
+    fun findRating(chatId: Long): Rating?
 }
 
 @Repository
@@ -132,6 +167,12 @@ interface MessageRepository : BaseRepository<Message> {
     )
     fun findMessageByUser(chatId: Long, content: String): Message?
 
+    @Modifying
+    @Query("""
+        update messages m set m.deleted = true
+        where m.senderId = ?1 and m.conversation is null
+    """)
+    fun deleteMessagesByUser(chatId: Long)
 
 }
 
