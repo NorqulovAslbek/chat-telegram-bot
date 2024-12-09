@@ -1,6 +1,6 @@
-import com.example.chattelegrambot.Language
-import com.example.chattelegrambot.SenderType
-import com.example.chattelegrambot.Status
+
+package com.example.chattelegrambot
+
 import jakarta.persistence.*
 import org.hibernate.annotations.ColumnDefault
 import org.springframework.data.annotation.CreatedDate
@@ -23,7 +23,7 @@ class BaseEntity(
     var deleted: Boolean = false
 )
 
-@Entity
+@Entity(name = "users")
 class Users(
     @Column(nullable = false)
     val chatId: Long,
@@ -32,13 +32,12 @@ class Users(
     @Column(nullable = false)
     var phone: String,
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     var langType: Language,
-    @Column(nullable = false)
-    var status: Status
 ) : BaseEntity()
 
 
-@Entity
+@Entity(name = "operators")
 data class Operator(
     @Column(nullable = false)
     val chatId: Long,
@@ -50,13 +49,12 @@ data class Operator(
     @Column(nullable = false)
     val language: Language,
     @Column(nullable = false)
-    var isBusy: Boolean = false,
-    @Column
-    var rating: Double? = null,
+    @Enumerated(EnumType.STRING)
+    var status: Status = Status.OPERATOR_INACTIVE,
 ) : BaseEntity()
 
 
-@Entity
+@Entity(name = "queues")
 data class Queue(
     @ManyToOne
     val users: Users,
@@ -66,7 +64,7 @@ data class Queue(
 ) : BaseEntity()
 
 
-@Entity
+@Entity(name = "conversations")
 data class Conversation(
     @ManyToOne
     val users: Users,
@@ -79,10 +77,10 @@ data class Conversation(
 ) : BaseEntity()
 
 
-@Entity
+@Entity(name = "messages")
 data class Message(
     @ManyToOne
-    val conversation: Conversation,
+    var conversation: Conversation?,
     @Column(nullable = false)
     val senderId: Long,
     @Enumerated(EnumType.STRING)
@@ -90,29 +88,28 @@ data class Message(
     val senderType: SenderType,
     @Column(nullable = false)
     val content: String,
+    @Column(nullable = false)
+    val messageId: Int
+) : BaseEntity()
 
-    ) : BaseEntity()
 
-
-@Entity
+@Entity(name = "ratings")
 data class Rating(
-    @ManyToOne
+    @OneToOne
     val conversation: Conversation,
     @ManyToOne
     val users: Users,
     @ManyToOne
     val operator: Operator,
-    @Column(nullable = false)
-    val score: Int, // 1 to 5
+    var score: Int? = null,
 ) : BaseEntity()
 
 
-@Entity
+@Entity(name = "workSessions")
 data class WorkSession(
     @ManyToOne
     var operator: Operator,
-    var workHour: Int,
-    @Column(nullable = false)
-    var salary: BigDecimal,
-    var endDate: Date
+    var workHour: Int?,
+    var salary: BigDecimal?,
+    var endDate: Date?
 ) : BaseEntity()

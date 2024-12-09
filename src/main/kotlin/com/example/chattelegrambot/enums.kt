@@ -1,3 +1,4 @@
+
 package com.example.chattelegrambot
 
 enum class ErrorCodes(val code: Int) {
@@ -8,23 +9,21 @@ enum class Language {
     UZ, EN
 }
 
-enum class Status {
-    CHATTING, QUEUE
-}
 
 enum class SenderType {
     USER, OPERATOR
 }
-enum class UsersStep{
-    USER_START,
+
+enum class Status {
     USER_LANGUAGE,
     USER_PHONE,
     USER_FULL_NAME,
     USER_WRITE_MESSAGE,
-    OPERATOR_LANGUAGE,
+    USER_CHATTING,
+    USER_QUEUE,
+    USER_RATING,
     OPERATOR_START_WORK,
-    OPERATOR_FINISH_CONVERSATION,
-    OPERATOR_FINISH_WORK
-
+    OPERATOR_INACTIVE,
+    OPERATOR_ACTIVE,
+    OPERATOR_BUSY,
 }
-
