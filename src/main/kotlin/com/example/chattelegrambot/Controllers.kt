@@ -1,5 +1,6 @@
 package com.example.chattelegrambot
 
+import org.springframework.context.MessageSource
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
@@ -11,6 +12,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
+import java.util.Locale
 
 
 @Component
@@ -18,14 +20,15 @@ class BotHandler(
     private val botHandlerForMessages: BotHandlerForMessages,
     private val botHandlerForReplyMarkUp: BotHandlerForReplyMarkUp,
     private val userService: UserService,
-    private val operatorService: OperatorService
+    private val messageSource: MessageSource,
+    private val operatorService: OperatorService,
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
-        return "@chat_telegram_1_0_bot"
+        return "@akromjon03bot"
     }
 
     override fun getBotToken(): String {
-        return "7923535042:AAHgoQ0uf1h3zxHnidCSWBz7iszFtIbeKRA"
+        return "7535970832:AAEwLuVg9A9wPjz6XUI3si8WWIeLtg4BL5c"
     }
 
     override fun onUpdateReceived(update: Update?) {
@@ -43,8 +46,7 @@ class BotHandler(
                         setRegistrationData(chatId, getRegistrationData(chatId))
                         sendResponse(
                             chatId,
-                            "Telefon raqamingizni kiriting: Namuna(+998 XX XXX - XX - XX)",
-                            "Enter your phone number like(+998 XX XXX - XX - XX)"
+                            "enter.phone.number"
                         )
                         setUserStep(chatId, Status.USER_PHONE)
                     }
@@ -57,8 +59,7 @@ class BotHandler(
                         removeRegistrationData(chatId)
                         sendResponse(
                             chatId,
-                            "Agar sizda qandaydir savollar mavjud bo'lsa yozishingiz mumkin",
-                            "If you have any question , you can write something for support"
+                            "write.question"
                         )
                         setUserStep(chatId, Status.USER_WRITE_MESSAGE)
                     }
@@ -68,13 +69,12 @@ class BotHandler(
                     }
 
                     Status.USER_QUEUE -> {
-                        if (text.equals("Orqaga") || text.equals("Back")) {
+                        if (text.equals("Orqaga\uD83D\uDD19") || text.equals("Back\uD83D\uDD19")) {
                             userService.deleteQueue(chatId)
                             userService.deleteMessage(chatId)
                             sendResponse(
                                 chatId,
-                                "Sizning shu paytgacha javob berilmagan savollaringiz muvaffaqiyatli o'chirildi",
-                                "Your unanswered questions have been successfully deleted."
+                                "not.answer.delete",
                             )
                         } else {
                             addMessage(chatId, text, update.message.messageId)
@@ -104,7 +104,6 @@ class BotHandler(
 
                         } else if (text.equals("Suhbatni Yakunlash") || text.equals("Finish Conversation")) {
                             finishConversation(chatId)
-
                         }
                     }
 
@@ -117,23 +116,22 @@ class BotHandler(
             val data = update.callbackQuery.data
             val userStep = getUserStep(chatId)
             when {
-                "${Language.EN}_call_back_data".equals(data) && userStep == Status.USER_LANGUAGE -> {
+                "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.EN)
                     execute(
                         botHandlerForMessages.sendMessage(
-                            chatId, "Please, Enter your full name ",
+                            chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
                 }
 
-                "${Language.UZ}_call_back_data".equals(data) && userStep == Status.USER_LANGUAGE -> {
+                "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.UZ)
                     execute(
                         botHandlerForMessages.sendMessage(
-                            chatId,
-                            "Iltimos, Ism familiyangizni kiriting!",
+                            chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
                 }
@@ -151,7 +149,6 @@ class BotHandler(
     }
 
     fun find(chatId: Long) {
-        val sendMessage: SendMessage
         when {
             userService.findUser(chatId) != null -> {
                 val user = userService.findUser(chatId)
@@ -161,8 +158,7 @@ class BotHandler(
                 setUserLanguage(chatId, user!!.langType)
                 sendResponse(
                     chatId,
-                    "Agar sizda qandaydir savollar mavjud bo'lsa yozishingiz mumkin",
-                    "If you have any question , you can write something for support"
+                    "have.question"
                 )
             }
 
@@ -174,15 +170,13 @@ class BotHandler(
                 setUserLanguage(chatId, operator!!.language)
                 sendResponse(
                     chatId,
-                    "Salom  ${operator.fullName}",
-                    "Hello ${operator.fullName}"
+                    "hello",
+                    operator.fullName
                 )
                 sendReplyMarkUp(
                     chatId,
-                    "Ishni Boshlash",
-                    "Start Work",
-                    "Ishni boshlash uchun tasdiqlang xabarini jo'nating",
-                    "For starting work send me confirmation message"
+                    "start.work",
+                    "sent.stark.work"
                 )
             }
 
@@ -193,7 +187,7 @@ class BotHandler(
                         chatId,
                         Language.UZ.toString(),
                         Language.EN.toString(),
-                        "Choose the language"
+                        "Choose the language(Tilni tanlang):"
                     )
                 )
             }
@@ -216,120 +210,118 @@ class BotHandler(
             operatorService.changeStatus(chatId, Status.OPERATOR_BUSY)
             sendResponse(
                 chatId,
-                "Sizning shu foydalanuvchi bilan muloqatingizni boshlandi ${it.fullName}",
-                "Your conversation started with this user ${it.fullName}"
+                "start.conversation",
+                it.fullName
             )
             sendReplyMarkUp(
                 chatId,
-                "Ishni Yakunlash",
-                "Suhbatni Yakunlash",
-                "Finish Work",
-                "Finish Conversation",
-                "Quyidagi tugmalar yordamida ishni yoki suhbatni yakunlashingiz mumkin",
-                "You can finish work or conversation by this buttons"
+                "finish.work",
+                "finish.conversation",
+                "message.for.finish"
             )
             sendResponse(
                 it.chatId,
-                "Sizning xabaringiz ${it.fullName} operatorga muvaffaqiyatli jo'natildi",
-                "Your messages successfully sent to operator ${it.fullName} !"
+                "sent.successfully.to.operator",
+                it.fullName
             )
         } ?: run {
             sendResponse(
-                chatId, "Hozircha navbatda turgan foydalanumchi yo'q!", "There is no user in queue",
+                chatId,
+                "not.user.in.queue",
                 ReplyKeyboardRemove(true)
             )
         }
     }
 
-    fun sendInlineMarkup(
+//    fun sendInlineMarkup(
+//        chatId: Long,
+//        firstMessageUz: String,
+//        secondMessageUz: String,
+//        firstMessageEn: String,
+//        secondMessageEn: String,
+//        messageResponseUz: String,
+//        messageResponseEn: String,
+//    ) {
+//
+//        when (getUserLanguage(chatId)) {
+//            Language.UZ -> execute(
+//                botHandlerForReplyMarkUp.sendInlineMarkUp(
+//                    chatId,
+//                    firstMessageUz,
+//                    secondMessageUz,
+//                    messageResponseUz
+//                )
+//            )
+//
+//            Language.EN -> execute(
+//                botHandlerForReplyMarkUp.sendInlineMarkUp(chatId, firstMessageEn, secondMessageEn, messageResponseEn)
+//            )
+//
+//            else -> ""
+//        }
+//    }
+
+    fun sendReplyMarkUp(
         chatId: Long,
-        firstMessageUz: String,
-        secondMessageUz: String,
-        firstMessageEn: String,
-        secondMessageEn: String,
-        messageResponseUz: String,
-        messageResponseEn: String
+        message: String,
+        response: String,
     ) {
+        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val locale = Locale(userLanguage)
 
-        when (getUserLanguage(chatId)) {
-            Language.UZ -> execute(
-                botHandlerForReplyMarkUp.sendInlineMarkUp(
-                    chatId,
-                    firstMessageUz,
-                    secondMessageUz,
-                    messageResponseUz
-                )
-            )
+        val message1 = messageSource.getMessage(message, null, locale)
+        val response1 = messageSource.getMessage(response, null, locale)
+        execute(botHandlerForReplyMarkUp.sendReplyMarkUp(chatId, message1, response1))
 
-            Language.EN -> execute(
-                botHandlerForReplyMarkUp.sendInlineMarkUp(chatId, firstMessageEn, secondMessageEn, messageResponseEn)
-            )
-
-            else -> ""
-        }
     }
 
     fun sendReplyMarkUp(
         chatId: Long,
-        messageUz: String,
-        messageEn: String,
-        messageResponseUz: String,
-        messageResponseEn: String
+        first: String,
+        second: String,
+        response: String,
     ) {
-        when (getUserLanguage(chatId)) {
-            Language.EN -> execute(botHandlerForReplyMarkUp.sendReplyMarkUp(chatId, messageEn, messageResponseEn))
-            Language.UZ -> execute(botHandlerForReplyMarkUp.sendReplyMarkUp(chatId, messageUz, messageResponseUz))
-            else -> ""
-        }
+        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val locale = Locale(userLanguage)
+
+        messageSource.getMessage(first, null, locale)
+        messageSource.getMessage(second, null, locale)
+        messageSource.getMessage(response, null, locale)
+
+        botHandlerForReplyMarkUp.sendReplyMarkUp(
+            chatId,
+            first,
+            second,
+            response
+        )
     }
 
-    fun sendReplyMarkUp(
-        chatId: Long,
-        messageFirstUz: String,
-        messageSecondUz: String,
-        messageFirstEn: String,
-        messageSecondEn: String,
-        messageResponseUz: String,
-        messageResponseEn: String
-    ) {
-        when (getUserLanguage(chatId)) {
-            Language.EN -> execute(
-                botHandlerForReplyMarkUp.sendReplyMarkUp(
-                    chatId,
-                    messageFirstEn,
-                    messageSecondEn,
-                    messageResponseEn
-                )
-            )
 
-            Language.UZ -> execute(
-                botHandlerForReplyMarkUp.sendReplyMarkUp(
-                    chatId,
-                    messageFirstUz,
-                    messageSecondUz,
-                    messageResponseUz
-                )
-            )
+    fun sendResponse(chatId: Long, code: String, vararg args: Any?) {
 
-            else -> ""
+        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val locale = Locale(userLanguage)
+
+        val response = if (args.isNotEmpty()) {
+            messageSource.getMessage(code, args, locale)
+        } else {
+            messageSource.getMessage(code, null, locale)
         }
-    }
 
-    fun sendResponse(chatId: Long, messageUz: String, messageEn: String) {
-        val response = when (getUserLanguage(chatId)) {
-            Language.EN -> messageEn
-            Language.UZ -> messageUz
-            else -> ""
-        }
         execute(botHandlerForMessages.sendMessage(chatId, response))
     }
 
-    fun sendResponse(chatId: Long, messageUz: String, messageEn: String, replyKeyboardRemove: ReplyKeyboardRemove) {
-        val response = when (getUserLanguage(chatId)) {
-            Language.EN -> messageEn
-            Language.UZ -> messageUz
-            else -> ""
-        }
+    fun getMessageFromResourceBundle(chatId: Long, code: String): String {
+        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val locale = Locale(userLanguage)
+
+        return messageSource.getMessage(code, null, locale)
+    }
+
+
+    fun sendResponse(chatId: Long, code: String, replyKeyboardRemove: ReplyKeyboardRemove) {
+
+        val response = getMessageFromResourceBundle(chatId, code)
         execute(botHandlerForMessages.sendMessage(chatId, response, replyKeyboardRemove))
     }
 
@@ -343,22 +335,21 @@ class BotHandler(
             operatorService.changeStatus(it.chatId, Status.OPERATOR_BUSY)
             sendResponse(
                 chatId,
-                "Sizning xabaringiz ${it.fullName} operatorga muvaffaqiyatli jo'natildi",
-                "Your messages successfully sent to operator ${it.fullName} !"
+                "sent.successfully.to.operator",
+                it.fullName
+
             )
             sendResponse(
                 it.chatId,
-                "Sizning shu foydalanuvchi bilan muloqatingizni boshlandi ${userService.findUser(chatId)!!.fullName}}",
-                "Your conversation started with this user ${userService.findUser(chatId)!!.fullName}"
+                "start.conversation",
+                userService.findUser(chatId)!!.fullName
+
             )
             sendReplyMarkUp(
                 it.chatId,
-                "Ishni Yakunlash",
-                "Suhbatni Yakunlash",
-                "Finish Work",
-                "Finish Conversation",
-                "Quyidagi tugmalar yordamida ishni yoki suhbatni yakunlashingiz mumkin",
-                "You can finish work or conversation by this buttons"
+                "finish.work",
+                "finish.conversation",
+                "message.for.finish"
             )
 
         } ?: run {
@@ -367,16 +358,13 @@ class BotHandler(
             }
             sendResponse(
                 chatId,
-                "Hozircha bo'sh operatorlarimiz yo'q , sizning xabarlaringiz navbatga qo'yiladi bo'sh operator bo'lishi bilan aloqaga chiqamiz",
-                "Now don't have any available operators ,your messages will store to queue we will contact you when will be available operator"
+                "busy.operator"
             )
             setUserStep(chatId, Status.USER_QUEUE)
             sendReplyMarkUp(
                 chatId,
-                "Orqaga",
-                "Back",
-                "Agar kutishni hohlamasangiz Orqaga qaytishingiz mumkin.",
-                "If you don't want to wait you can comeback"
+                "back",
+                "back.message"
             )
         }
 
@@ -396,8 +384,8 @@ class BotHandler(
             execute(botHandlerForMessages.sendMessage(it.operator.chatId, message))
             sendResponse(
                 chatId,
-                "Sizning xabaringiiz operatorga muvaffaqiyatli jo'natildi",
-                "Your messages successfully sent to operator!", ReplyKeyboardRemove(true)
+                "sent.message.to.operator",
+                ReplyKeyboardRemove(true)
             )
             addMessage(chatId, message, messageId)
         }
@@ -416,8 +404,7 @@ class BotHandler(
         setUserStep(chatId, Status.OPERATOR_ACTIVE)
         sendResponse(
             chatId,
-            "Sizning suhbatingzi muvaffaqiyatli tugadi",
-            "Your conversation has finished successfully "
+            "conversation.finished.success"
         )
         startWork(chatId, getUserLanguage(chatId)!!)
 
@@ -426,7 +413,10 @@ class BotHandler(
     fun finishWork(chatId: Long) {
         addRating(operatorService.finishWork(chatId))
         setUserStep(chatId, Status.OPERATOR_INACTIVE)
-        sendResponse(chatId, "Sizning ishingiz muvaffaqiyatli tugadi", "Your work has finished successfully")
+        sendResponse(
+            chatId,
+            "work.finished.success"
+        )
     }
 
     fun addRating(chatId: Long?) {
@@ -437,7 +427,8 @@ class BotHandler(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         listOf("1", "2", "3", "4", "5"),
                         chatId,
-                        "Rate the conversation (1-5)"
+                        getMessageFromResourceBundle(chatId, "rate.conversation")
+
                     )
                 )
 
@@ -445,7 +436,7 @@ class BotHandler(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         listOf("1", "2", "3", "4", "5"),
                         chatId,
-                        "Suhbatni baholang (1-5)"
+                        getMessageFromResourceBundle(chatId, "rate.conversation")
                     )
                 )
 
@@ -459,8 +450,7 @@ class BotHandler(
         userService.addRatingScore(score, chatId)
         sendResponse(
             chatId,
-            "Agar sizda qandaydir savollar mavjud bo'lsa yozishingiz mumkin",
-            "If you have any question , you can write something for support",
+            "write.question",
             ReplyKeyboardRemove(true)
         )
         setUserStep(chatId, Status.USER_WRITE_MESSAGE)
@@ -468,8 +458,7 @@ class BotHandler(
 }
 
 @Controller
-class BotHandlerForMessages(
-) {
+class BotHandlerForMessages{
 
     fun sendMessage(chatId: Long, message: String): SendMessage {
         val sendMessage = SendMessage()
@@ -490,16 +479,15 @@ class BotHandlerForMessages(
 }
 
 @Controller
-class BotHandlerForReplyMarkUp(
-) {
+class BotHandlerForReplyMarkUp {
     fun sendInlineMarkUp(chatId: Long, firstMessage: String, secondMessage: String, messageText: String): SendMessage {
         val sendMessage = SendMessage()
         val sendInlineKeyboardMarkUp = InlineKeyboardMarkup()
         val inlineKeyboardMarkupButton1 = InlineKeyboardButton()
         val inlineKeyboardMarkupButton2 = InlineKeyboardButton()
-        inlineKeyboardMarkupButton1.text = firstMessage
+        inlineKeyboardMarkupButton1.text = "\uD83C\uDDFA\uD83C\uDDFF $firstMessage"
         inlineKeyboardMarkupButton1.callbackData = "${firstMessage}_call_back_data"
-        inlineKeyboardMarkupButton2.text = secondMessage
+        inlineKeyboardMarkupButton2.text = "\uD83C\uDDEC\uD83C\uDDE7 $secondMessage"
         inlineKeyboardMarkupButton2.callbackData = "${secondMessage}_call_back_data"
         val listOfButtons = mutableListOf(inlineKeyboardMarkupButton1, inlineKeyboardMarkupButton2)
         val listOfListsOfButtons = mutableListOf(listOfButtons)
@@ -556,7 +544,7 @@ class BotHandlerForReplyMarkUp(
         chatId: Long,
         firstMessage: String,
         secondMessage: String,
-        messageResponse: String
+        messageResponse: String,
     ): SendMessage {
         val sendMessage = SendMessage()
         val replyKeyboardMarkup = ReplyKeyboardMarkup()
