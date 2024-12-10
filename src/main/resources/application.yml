@@ -7,4 +7,6 @@ spring:
     hibernate:
       ddl-auto: create
 
+server:
+  port: 8081
 
