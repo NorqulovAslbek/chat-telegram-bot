@@ -22,24 +22,23 @@ interface UserService {
 }
 
 interface OperatorService {
-
-
-
     fun addConversation(chatId: Long, user: Users)
     fun addMessage(chatId: Long, content: String, userMessage: String, userChatId: Long, operatorMessageId: Int)
+    fun addOperator(userId: Long, language: Language): Long?
     fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
     fun findAvailableOperator(langType: Language): Operator?
     fun startWork(chatId: Long, langType: Language): Users?
-    fun finishWork(chatId: Long): Long?
+    fun startWorkSession(chatId: Long)
+    fun finishWork(chatId: Long)
     fun finishConversation(chatId: Long): Long?
     fun findConversationByOperator(chatId: Long): Conversation?
+
 
 }
 
 @Service
 class UserServiceImpl(
-
     private val messageRepository: MessageRepository,
     private val userRepository: UserRepository,
     private val queueRepository: QueueRepository,
@@ -118,7 +117,8 @@ class OperatorServiceImpl(
     private val queueRepository: QueueRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val userService: UserService
+    private val userService: UserService,
+    private val userRepository: UserRepository
 ) : OperatorService {
     override fun addConversation(chatId: Long, user: Users) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
@@ -142,10 +142,21 @@ class OperatorServiceImpl(
         }
     }
 
+    override fun addOperator(userId: Long, language: Language): Long? {
+        var userChatId: Long? = null
+        userRepository.findByIdAndDeletedFalse(userId)?.let {
+            operatorRepository.save(Operator(it.chatId, it.fullName, it.phone, language))
+            userChatId = it.chatId
+            userRepository.trash(userId)
+        }
+        return userChatId
+    }
+
     @Transactional
     override fun changeStatus(chatId: Long, status: Status) {
         operatorRepository.changeStatus(chatId, status)
     }
+
     override fun findOperator(operatorChatId: Long): Operator? {
         return operatorRepository.findOperatorByChatId(operatorChatId)
     }
@@ -158,11 +169,17 @@ class OperatorServiceImpl(
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_ACTIVE
             operatorRepository.save(it)
-            workSessionRepository.save(WorkSession(it, null, null, null))
         }
         return queueRepository.findFirstUserFromQueue(langType)
     }
-    override fun finishWork(chatId: Long): Long? {
+
+    override fun startWorkSession(chatId: Long) {
+        operatorRepository.findOperatorByChatId(chatId)?.let {
+            workSessionRepository.save(WorkSession(it, null, null, null))
+        }
+    }
+
+    override fun finishWork(chatId: Long) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_INACTIVE
             operatorRepository.save(it)
@@ -176,21 +193,25 @@ class OperatorServiceImpl(
             workSession.salary = workHour.toBigDecimal() * HOURLY_RATE
             workSessionRepository.save(workSession)
         }
-        return finishConversation(chatId)
     }
 
+    @Transactional
     override fun finishConversation(chatId: Long): Long? {
         var userChatId: Long? = null
         operatorRepository.findOperatorByChatId(chatId)?.let { item ->
             conversationRepository.findConversationByOperator(item.chatId)?.let {
                 userChatId = it.users.chatId
-                userService.addRating(it.users, it.operator, it)
                 it.endDate = Date()
                 conversationRepository.save(it)
+                userService.addRating(it.users, it.operator, it)
+                messageRepository.deleteMessagesByUser(it.users.chatId)
+                item.status = Status.OPERATOR_ACTIVE
+                operatorRepository.save(item)
             }
         }
         return userChatId
     }
+
     override fun findConversationByOperator(chatId: Long): Conversation? {
         return conversationRepository.findConversationByOperator(chatId)
     }

@@ -2,6 +2,10 @@ package com.example.chattelegrambot
 
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -50,17 +54,27 @@ class BotHandler(
                     }
 
                     Status.USER_PHONE -> {
-                        val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.phoneNumber = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
-                        userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
-                        removeRegistrationData(chatId)
-                        sendResponse(
-                            chatId,
-                            "Agar sizda qandaydir savollar mavjud bo'lsa yozishingiz mumkin",
-                            "If you have any question , you can write something for support"
-                        )
-                        setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                        val uzbekistanPhoneRegex = Regex("^\\+998\\s?\\d{2}\\s?\\d{3}[-\\s]?\\d{2}[-\\s]?\\d{2}\$")
+                        if (uzbekistanPhoneRegex.matches(text)) {
+                            val userRegisterUser: RegisterUser = getRegistrationData(chatId)
+                            userRegisterUser.phoneNumber = text.toString()
+                            setRegistrationData(chatId, getRegistrationData(chatId))
+                            userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
+                            removeRegistrationData(chatId)
+                            sendResponse(
+                                chatId,
+                                "Agar sizda qandaydir savollar mavjud bo'lsa yozishingiz mumkin",
+                                "If you have any question , you can write something for support"
+                            )
+                            setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                        } else {
+                            sendResponse(
+                                chatId,
+                                "Siz telefon raqamni noto'g'ri kirittingiz qaytadan kiriting",
+                                "You sent phone number incorrect you should send correct version again"
+                            )
+                        }
+
                     }
 
                     Status.USER_WRITE_MESSAGE -> {
@@ -89,6 +103,13 @@ class BotHandler(
                     Status.OPERATOR_START_WORK -> {
                         if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
                             startWork(chatId, getUserLanguage(chatId)!!)
+                            operatorService.startWorkSession(chatId)
+                        }
+                    }
+
+                    Status.OPERATOR_ACTIVE -> {
+                        if (text.equals("Ishni Yakunlash") || text.equals("Finish Work")) {
+                            finishWork(chatId)
                         }
                     }
 
@@ -151,7 +172,6 @@ class BotHandler(
     }
 
     fun find(chatId: Long) {
-        val sendMessage: SendMessage
         when {
             userService.findUser(chatId) != null -> {
                 val user = userService.findUser(chatId)
@@ -231,13 +251,22 @@ class BotHandler(
             sendResponse(
                 it.chatId,
                 "Sizning xabaringiz ${it.fullName} operatorga muvaffaqiyatli jo'natildi",
-                "Your messages successfully sent to operator ${it.fullName} !"
+                "Your messages successfully sent to operator ${it.fullName} !",
+                ReplyKeyboardRemove(true)
             )
         } ?: run {
             sendResponse(
                 chatId, "Hozircha navbatda turgan foydalanumchi yo'q!", "There is no user in queue",
                 ReplyKeyboardRemove(true)
             )
+            sendReplyMarkUp(
+                chatId,
+                "Ishni Yakunlash",
+                "Finish Work",
+                "Agar uzoq muddat foydalanuvchi chiqmasa ishni yakunlashingiz mumkin",
+                "If the user remains inactive for a long time, you can conclude the task."
+            )
+            setUserStep(chatId, Status.OPERATOR_ACTIVE)
         }
     }
 
@@ -397,7 +426,7 @@ class BotHandler(
             sendResponse(
                 chatId,
                 "Sizning xabaringiiz operatorga muvaffaqiyatli jo'natildi",
-                "Your messages successfully sent to operator!", ReplyKeyboardRemove(true)
+                "Your messages successfully sent to operator!"
             )
             addMessage(chatId, message, messageId)
         }
@@ -413,20 +442,24 @@ class BotHandler(
 
     fun finishConversation(chatId: Long) {
         addRating(operatorService.finishConversation(chatId))
-        setUserStep(chatId, Status.OPERATOR_ACTIVE)
         sendResponse(
             chatId,
             "Sizning suhbatingzi muvaffaqiyatli tugadi",
-            "Your conversation has finished successfully "
+            "Your conversation has finished successfully ",
+            ReplyKeyboardRemove(true)
         )
         startWork(chatId, getUserLanguage(chatId)!!)
-
     }
 
     fun finishWork(chatId: Long) {
-        addRating(operatorService.finishWork(chatId))
+        operatorService.finishWork(chatId)
+        addRating(operatorService.finishConversation(chatId))
         setUserStep(chatId, Status.OPERATOR_INACTIVE)
-        sendResponse(chatId, "Sizning ishingiz muvaffaqiyatli tugadi", "Your work has finished successfully")
+        sendResponse(
+            chatId, "Sizning ishingiz muvaffaqiyatli tugadi,", "Your work has finished successfully",
+            ReplyKeyboardRemove(true)
+        )
+        find(chatId)
     }
 
     fun addRating(chatId: Long?) {
@@ -578,5 +611,25 @@ class BotHandlerForReplyMarkUp(
         return sendMessage
     }
 
+}
+
+@RestController
+@RequestMapping("/admin")
+class AdminPanelController(
+    private val operatorService: OperatorService,
+    private val botHandler: BotHandler
+) {
+    @PostMapping("/create")
+    fun createOperator(@RequestBody operator: RegisterOperator) {
+        operatorService.addOperator(operator.id, operator.langType)?.let {
+            removeUsersStep(it)
+            botHandler.sendResponse(
+                it,
+                "Sessiyangiz o'chirildi qaytadan ishga tushirish uchun /start so'zini jo'nating",
+                "Your session expired you send /start word"
+            )
+            removeUserLanguage(it)
+        }
+    }
 }
 

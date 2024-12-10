@@ -30,6 +30,11 @@ fun setUserLanguage(chatId: Long, language: Language) {
 fun getUserLanguage(chatId: Long) = usersLanguage[chatId]
 
 @Synchronized
+fun removeUserLanguage(chatId: Long) {
+    usersLanguage.remove(chatId)
+}
+
+@Synchronized
 fun getRegistrationData(chatId: Long) = userRegistrations.getOrPut(chatId) { RegisterUser() }
 
 @Synchronized

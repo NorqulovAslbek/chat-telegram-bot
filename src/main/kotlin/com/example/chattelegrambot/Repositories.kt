@@ -171,6 +171,8 @@ interface MessageRepository : BaseRepository<Message> {
         """
         select m from messages m
         where m.senderId = ?1 and m.conversation is null and m.content = ?2 and  m.deleted = false
+        order by m.createdDate
+        limit 1
     """
     )
     fun findMessageByUser(chatId: Long, content: String): Message?
