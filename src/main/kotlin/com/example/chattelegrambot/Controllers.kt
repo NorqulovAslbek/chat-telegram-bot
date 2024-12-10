@@ -2,6 +2,9 @@ package com.example.chattelegrambot
 
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -579,4 +582,39 @@ class BotHandlerForReplyMarkUp(
     }
 
 }
+
+
+@RestController
+@RequestMapping("/api/operators/statistics")
+class OperatorStatisticsController(
+    private val operatorStatisticsService: OperatorStatisticsService
+) {
+
+    @GetMapping("/total")
+    fun getTotalOperators(): Long {
+        return operatorStatisticsService.getTotalOperators()
+    }
+
+
+    @GetMapping("/work-hours")
+    fun getTotalWorkHours(): List<OperatorWorkHoursDto> {
+        return operatorStatisticsService.findTotalWorkHours()
+    }
+
+    @GetMapping("/salary")
+    fun getTotalSalary(): List<OperatorSalaryDto> {
+        return operatorStatisticsService.findTotalSalary()
+    }
+
+    @GetMapping("/ratings")//ortacha
+    fun getAverageRatings(): List<OperatorRatingDto> {
+        return operatorStatisticsService.findAverageRatings()
+    }
+
+    @GetMapping("/conversations")
+    fun getTotalConversations(): List<OperatorConversationDto> {
+        return operatorStatisticsService.findOperatorConversationCounts()
+    }
+}
+
 

@@ -112,6 +112,27 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
     """
     )
     fun getTodayWorkSession(chatId: Long): WorkSession
+
+    @Query(
+        """
+    SELECT w.operator.fullName, SUM(w.workHour) 
+    FROM workSessions w 
+    GROUP BY w.operator.fullName
+"""
+    )
+    fun findTotalWorkHoursRaw(): List<Array<Any>>
+
+
+    @Query(
+        """
+    SELECT w.operator.fullName, SUM(w.salary) 
+    FROM workSessions w 
+    GROUP BY w.operator.fullName
+"""
+    )
+    fun findTotalSalaryRaw(): List<Array<Any>>
+
+
 }
 
 @Repository
@@ -127,11 +148,13 @@ interface QueueRepository : BaseRepository<Queue> {
     fun findFirstUserFromQueue(language: Language): Users?
 
 
-    @Query("""
+    @Query(
+        """
         select q from queues q
         where q.users.chatId = ?1 and q.deleted = false
-    """)
-    fun existUser(chatId: Long) : Queue?
+    """
+    )
+    fun existUser(chatId: Long): Queue?
 
     @Modifying
     @Query(
@@ -141,7 +164,6 @@ interface QueueRepository : BaseRepository<Queue> {
     """
     )
     fun deleteUserFromQueue(chatId: Long, language: Language)
-
 
 }
 
@@ -154,6 +176,13 @@ interface RatingRepository : BaseRepository<Rating> {
     """
     )
     fun findRating(chatId: Long): Rating?
+    @Query("""
+    SELECT r.operator.fullName, COALESCE(AVG(r.score), 0) 
+    FROM ratings r 
+    GROUP BY r.operator.fullName
+""")
+    fun findAverageRatingsRaw(): List<Array<Any>>
+
 }
 
 @Repository
@@ -176,10 +205,12 @@ interface MessageRepository : BaseRepository<Message> {
     fun findMessageByUser(chatId: Long, content: String): Message?
 
     @Modifying
-    @Query("""
+    @Query(
+        """
         update messages m set m.deleted = true
         where m.senderId = ?1 and m.conversation is null
-    """)
+    """
+    )
     fun deleteMessagesByUser(chatId: Long)
 
 }
@@ -202,4 +233,14 @@ interface ConversationRepository : BaseRepository<Conversation> {
     """
     )
     fun findConversationByUser(chatId: Long): Conversation?
+
+    @Query(
+        """
+    SELECT c.operator.fullName, COUNT(c.id) 
+    FROM conversations c 
+    GROUP BY c.operator.fullName
+"""
+    )
+    fun findOperatorConversationCountsRaw(): List<Array<Any>>
+
 }
