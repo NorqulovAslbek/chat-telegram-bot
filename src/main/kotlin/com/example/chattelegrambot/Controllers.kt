@@ -54,29 +54,13 @@ class BotHandler(
                         val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
                         if (firstEntry != null) {
                             deleteCallBack(firstEntry.key, firstEntry.value)
-                            // Mapdan ochirish kerak, bomasa ochirilgan xabar yana saqlanib qoladi
                             getAllFullNameIdAndMessageIds().remove(firstEntry.key)
                         }
+                        sendContactRequest(chatId) //kontakni yuborish
 
-                        sendResponse(
-                            chatId,
-                            "enter.phone.number"
-                        )
                         setUserStep(chatId, Status.USER_PHONE)
                     }
 
-                    Status.USER_PHONE -> {
-                        val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.phoneNumber = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
-                        userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
-                        removeRegistrationData(chatId)
-                        sendResponse(
-                            chatId,
-                            "write.question"
-                        )
-                        setUserStep(chatId, Status.USER_WRITE_MESSAGE)
-                    }
 
                     Status.USER_WRITE_MESSAGE -> {
                         sendWritedMessage(chatId, text, update.message.messageId)
@@ -168,7 +152,41 @@ class BotHandler(
             }
 
 
+        } else if (update != null && update.hasMessage() && update.message.hasContact()) {
+            val contact = update.message.contact
+            val phoneNumber = contact.phoneNumber
+            val chatId = update.message.chatId
+
+            // Full name va xabar identifikatorlarini o‘chirish
+            val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
+            if (firstEntry != null) {
+                deleteCallBack(firstEntry.key, firstEntry.value) // Callback o‘chiriladi
+                getAllFullNameIdAndMessageIds().remove(firstEntry.key) // Mapdan olib tashlanadi
+            }
+
+            // Callback o‘chirish
+            deleteCallBack(chatId, update.message.messageId)
+
+            // Foydalanuvchi bosqichini tekshirish
+            when (getUserStep(chatId)) {
+                Status.USER_PHONE -> {
+                    val userRegisterUser: RegisterUser = getRegistrationData(chatId)
+                    userRegisterUser.phoneNumber = phoneNumber
+                    setRegistrationData(chatId, userRegisterUser) // Royxatga olish malumotlari saqlanadi
+                    userService.addUser(userRegisterUser, chatId, getUserLanguage(chatId)!!)
+                    removeRegistrationData(chatId) // Royxatga olish malumotlarini ochirish
+                    sendResponse(
+                        chatId,
+                        "write.question"
+                    )
+                    setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
+                }
+
+                else -> ""
+            }
         }
+
+
     }
 
     fun find(chatId: Long) {
@@ -493,6 +511,36 @@ class BotHandler(
         } catch (e: TelegramApiException) {
             e.printStackTrace()
         }
+    }
+
+    fun sendContactRequest(chatId: Long) {
+        // Keyboard tugmasi yaratiladi
+        val contactButton = KeyboardButton("\uD83D\uDCDE").apply {
+            requestContact = true // Kontaktni so‘rashni yoqish
+        }
+
+        // Klaviatura qatorini yaratish
+        val keyboardRow = KeyboardRow().apply {
+            add(contactButton)
+        }
+
+        // ReplyKeyboardMarkup ni sozlash
+        val replyKeyboardMarkup = ReplyKeyboardMarkup().apply {
+            keyboard = listOf(keyboardRow)
+            resizeKeyboard = true // Klaviatura ekranga moslashadi
+            oneTimeKeyboard = true // Tugma faqat bir marta ko‘rinadi
+        }
+
+        // Xabarni yaratish
+        val message = SendMessage().apply {
+            this.chatId = chatId.toString()
+            text = getMessageFromResourceBundle(chatId, "share.your.contact") + "☎\uFE0F"
+            replyMarkup = replyKeyboardMarkup // Klaviatura qo‘shiladi
+        }
+
+        // Xabarni yuborish
+        val sendMessages = execute(message)
+        putFullNameIdAndMessageId(chatId, sendMessages.messageId)
     }
 }
 
