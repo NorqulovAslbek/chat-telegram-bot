@@ -1,10 +1,9 @@
 package com.example.chattelegrambot
 
+import org.springframework.context.MessageSource
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Update
@@ -14,6 +13,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
+import java.util.*
 
 
 @Component
@@ -170,7 +170,7 @@ class BotHandler(
                 getUserStep(chatId)?.let {
                     setUserStep(chatId, getUserStep(chatId)!!)
                 } ?: setUserStep(chatId, Status.OPERATOR_START_WORK)
-                setUserLanguage(chatId, operator!!.language)
+                setUserLanguage(chatId, operator!!.language[0])
                 sendResponse(
                     chatId,
                     "hello",
@@ -287,15 +287,14 @@ class BotHandler(
         val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
         val locale = Locale(userLanguage)
 
-        messageSource.getMessage(first, null, locale)
-        messageSource.getMessage(second, null, locale)
-        messageSource.getMessage(response, null, locale)
 
-        botHandlerForReplyMarkUp.sendReplyMarkUp(
-            chatId,
-            first,
-            second,
-            response
+        execute(
+            botHandlerForReplyMarkUp.sendReplyMarkUp(
+                chatId,
+                messageSource.getMessage(first, null, locale),
+                messageSource.getMessage(second, null, locale),
+                messageSource.getMessage(response, null, locale)
+            )
         )
     }
 
@@ -310,16 +309,9 @@ class BotHandler(
         } else {
             messageSource.getMessage(code, null, locale)
         }
-    }
-
-    fun sendResponse(chatId: Long, messageUz: String, messageEn: String) {
-        val response = when (getUserLanguage(chatId)) {
-            Language.EN -> messageEn
-            Language.UZ -> messageUz
-            else -> ""
-        }
         execute(botHandlerForMessages.sendMessage(chatId, response))
     }
+
 
     fun getMessageFromResourceBundle(chatId: Long, code: String): String {
         val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
@@ -421,12 +413,15 @@ class BotHandler(
     }
 
     fun finishWork(chatId: Long) {
-        addRating(operatorService.finishWork(chatId))
+        operatorService.finishWork(chatId)
+        addRating(operatorService.finishConversation(chatId))
         setUserStep(chatId, Status.OPERATOR_INACTIVE)
         sendResponse(
             chatId,
-            "work.finished.success"
+            "work.finished.success",
+            ReplyKeyboardRemove(true)
         )
+        find(chatId)
     }
 
     fun addRating(chatId: Long?) {
@@ -468,7 +463,7 @@ class BotHandler(
 }
 
 @Controller
-class BotHandlerForMessages{
+class BotHandlerForMessages {
 
     fun sendMessage(chatId: Long, message: String): SendMessage {
         val sendMessage = SendMessage()
@@ -611,5 +606,28 @@ class OperatorStatisticsController(
         return operatorStatisticsService.findOperatorConversationCounts()
     }
 }
+
+
+@RestController
+@RequestMapping("/admin")
+class AdminPanelController(
+    private val operatorService: OperatorService,
+    private val botHandler: BotHandler
+) {
+    @PostMapping("/create")
+    fun createOperator(@RequestBody operator: RegisterOperator) {
+        operatorService.addOperator(operator.id, operator.langType)?.let {
+            removeUsersStep(it)
+            botHandler.sendResponse(
+                it,
+                "session.expired"
+            )
+            removeUserLanguage(it)
+        }
+    }
+}
+
+
+
 
 

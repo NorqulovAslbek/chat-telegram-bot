@@ -34,5 +34,5 @@ data class OperatorConversationDto(
 
 data class RegisterOperator(
     val id: Long,
-    val langType: Language,
+    val langType: List<Language>,
 )

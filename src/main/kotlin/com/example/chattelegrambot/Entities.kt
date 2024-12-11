@@ -1,4 +1,3 @@
-
 package com.example.chattelegrambot
 
 import jakarta.persistence.*
@@ -8,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.math.BigDecimal
 import java.util.*
+import kotlin.collections.List
 
 
 @MappedSuperclass
@@ -34,6 +34,8 @@ class Users(
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     var langType: Language,
+    @Column
+    var status: Status
 ) : BaseEntity()
 
 
@@ -47,7 +49,7 @@ data class Operator(
     val phone: String,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    val language: Language,
+    val language: List<Language>,
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     var status: Status = Status.OPERATOR_INACTIVE,

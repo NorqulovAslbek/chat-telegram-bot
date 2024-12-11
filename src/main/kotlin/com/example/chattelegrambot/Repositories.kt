@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.support.JpaEntityInformation
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository
 import org.springframework.data.repository.NoRepositoryBean
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 
 @NoRepositoryBean
@@ -90,14 +91,15 @@ interface OperatorRepository : BaseRepository<Operator> {
     fun changeStatus(chatId: Long, status: Status)
 
     @Query(
+        value =
         """
-        select o from operators o
-        where o.deleted = false and o.language = ?1 and o.status = 'OPERATOR_ACTIVE'
-        order by o.id
-        limit 1
-    """
+      select * from operators o
+where o.deleted = false and (o.language[1] =:language or o.language[2] =:language) and o.status = 'OPERATOR_ACTIVE'
+order by o.id
+limit 1
+    """, nativeQuery = true
     )
-    fun findAvailableOperator(language: Language): Operator?
+    fun findAvailableOperator(@Param("language")language: String): Operator?
 
 
 }
@@ -145,7 +147,7 @@ interface QueueRepository : BaseRepository<Queue> {
         limit 1
     """
     )
-    fun findFirstUserFromQueue(language: Language): Users?
+    fun findFirstUserFromQueue(language: Language): Users? // togirlash kerak
 
 
     @Query(
@@ -176,11 +178,14 @@ interface RatingRepository : BaseRepository<Rating> {
     """
     )
     fun findRating(chatId: Long): Rating?
-    @Query("""
+
+    @Query(
+        """
     SELECT r.operator.fullName, COALESCE(AVG(r.score), 0) 
     FROM ratings r 
     GROUP BY r.operator.fullName
-""")
+"""
+    )
     fun findAverageRatingsRaw(): List<Array<Any>>
 
 }

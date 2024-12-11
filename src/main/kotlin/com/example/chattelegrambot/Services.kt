@@ -26,7 +26,7 @@ interface UserService {
 interface OperatorService {
     fun addConversation(chatId: Long, user: Users)
     fun addMessage(chatId: Long, content: String, userMessage: String, userChatId: Long, operatorMessageId: Int)
-    fun addOperator(userId: Long, language: Language): Long?
+    fun addOperator(userId: Long, language: List<Language>): Long?
     fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
     fun findAvailableOperator(langType: Language): Operator?
@@ -54,7 +54,7 @@ class UserServiceImpl(
 
     override fun addUser(user: RegisterUser, chatId: Long, langType: Language) {
         userRepository.save(
-            Users(chatId, user.fullName!!, user.phoneNumber!!, langType)
+            Users(chatId, user.fullName!!, user.phoneNumber!!, langType, Status.USER_WRITE_MESSAGE)
         )
     }
 
@@ -145,7 +145,7 @@ class OperatorServiceImpl(
         }
     }
 
-    override fun addOperator(userId: Long, language: Language): Long? {
+    override fun addOperator(userId: Long, language: List<Language>): Long? {
         var userChatId: Long? = null
         userRepository.findByIdAndDeletedFalse(userId)?.let {
             operatorRepository.save(Operator(it.chatId, it.fullName, it.phone, language))
@@ -159,12 +159,13 @@ class OperatorServiceImpl(
     override fun changeStatus(chatId: Long, status: Status) {
         operatorRepository.changeStatus(chatId, status)
     }
+
     override fun findOperator(operatorChatId: Long): Operator? {
         return operatorRepository.findOperatorByChatId(operatorChatId)
     }
 
     override fun findAvailableOperator(langType: Language): Operator? {
-        return operatorRepository.findAvailableOperator(langType)
+        return operatorRepository.findAvailableOperator(langType.toString())
     }
 
     override fun startWork(chatId: Long, langType: Language): Users? {
@@ -183,7 +184,7 @@ class OperatorServiceImpl(
     }
 
 
-    override fun finishWork(chatId: Long): Long? {
+    override fun finishWork(chatId: Long) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_INACTIVE
             operatorRepository.save(it)
@@ -197,7 +198,6 @@ class OperatorServiceImpl(
             workSession.salary = workHour.toBigDecimal() * HOURLY_RATE
             workSessionRepository.save(workSession)
         }
-        return finishConversation(chatId)
     }
 
     @Transactional
@@ -213,6 +213,7 @@ class OperatorServiceImpl(
         }
         return userChatId
     }
+
     override fun findConversationByOperator(chatId: Long): Conversation? {
         return conversationRepository.findConversationByOperator(chatId)
     }
@@ -230,6 +231,7 @@ interface OperatorStatisticsService {
     fun findOperatorConversationCounts(): List<OperatorConversationDto>
 
 }
+
 @Service
 class OperatorStatisticsServiceImpl(
     private val operatorRepository: OperatorRepository,
