@@ -13,6 +13,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import java.util.*
 
 
@@ -25,11 +26,11 @@ class BotHandler(
     private val operatorService: OperatorService,
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
-        return "@chat_telegram_1_0_bot"
+        return "@javacssbot"
     }
 
     override fun getBotToken(): String {
-        return "7923535042:AAHgoQ0uf1h3zxHnidCSWBz7iszFtIbeKRA"
+        return "6517497852:AAF0Yl1ISompZm4SqdCEPAnQUAzBkdHhi6w"
     }
 
     override fun onUpdateReceived(update: Update?) {
@@ -43,8 +44,20 @@ class BotHandler(
                 when (getUserStep(chatId)) {
                     Status.USER_FULL_NAME -> {
                         val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.fullName = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
+                        userRegisterUser.fullName = text
+                        setRegistrationData(chatId, userRegisterUser)
+
+                        // ism yozilgan xabarni ochirish
+                        deleteCallBack(chatId, update.message.messageId)
+
+                        // ismini soragan xabarni olish va ochirish
+                        val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
+                        if (firstEntry != null) {
+                            deleteCallBack(firstEntry.key, firstEntry.value)
+                            // Mapdan ochirish kerak, bomasa ochirilgan xabar yana saqlanib qoladi
+                            getAllFullNameIdAndMessageIds().remove(firstEntry.key)
+                        }
+
                         sendResponse(
                             chatId,
                             "enter.phone.number"
@@ -117,26 +130,34 @@ class BotHandler(
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = getUserStep(chatId)
+            //// delete calback query
+            deleteCallBack(chatId, update.callbackQuery.message.messageId)
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.EN)
-                    execute(
+                    val message = execute(
                         botHandlerForMessages.sendMessage(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
+                    ////
+                    putFullNameIdAndMessageId(chatId, message.messageId)
                 }
 
-                "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
+                "${Language.UZ}_call_back_data".equals(data) && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.UZ)
-                    execute(
+
+                    val message = execute(
                         botHandlerForMessages.sendMessage(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
+                    ////
+                    putFullNameIdAndMessageId(chatId, message.messageId)
                 }
+
 
                 "1_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(1, chatId)
                 "2_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(2, chatId)
@@ -459,6 +480,19 @@ class BotHandler(
             ReplyKeyboardRemove(true)
         )
         setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+    }
+
+    fun deleteCallBack(chatId: Long, messageId: Int) {
+        try {
+            execute(
+                org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage(
+                    chatId.toString(),
+                    messageId
+                )
+            )
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
     }
 }
 
