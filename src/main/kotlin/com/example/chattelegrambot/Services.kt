@@ -2,7 +2,9 @@ package com.example.chattelegrambot
 
 import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
+import java.math.BigDecimal
 import java.util.*
+import kotlin.time.Duration.Companion.hours
 
 
 interface UserService {
@@ -39,6 +41,7 @@ interface OperatorService {
 
 @Service
 class UserServiceImpl(
+
     private val messageRepository: MessageRepository,
     private val userRepository: UserRepository,
     private val queueRepository: QueueRepository,
@@ -156,7 +159,6 @@ class OperatorServiceImpl(
     override fun changeStatus(chatId: Long, status: Status) {
         operatorRepository.changeStatus(chatId, status)
     }
-
     override fun findOperator(operatorChatId: Long): Operator? {
         return operatorRepository.findOperatorByChatId(operatorChatId)
     }
@@ -169,6 +171,7 @@ class OperatorServiceImpl(
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_ACTIVE
             operatorRepository.save(it)
+            workSessionRepository.save(WorkSession(it, null, null, null))
         }
         return queueRepository.findFirstUserFromQueue(langType)
     }
@@ -179,7 +182,8 @@ class OperatorServiceImpl(
         }
     }
 
-    override fun finishWork(chatId: Long) {
+
+    override fun finishWork(chatId: Long): Long? {
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_INACTIVE
             operatorRepository.save(it)
@@ -193,6 +197,7 @@ class OperatorServiceImpl(
             workSession.salary = workHour.toBigDecimal() * HOURLY_RATE
             workSessionRepository.save(workSession)
         }
+        return finishConversation(chatId)
     }
 
     @Transactional
@@ -201,18 +206,73 @@ class OperatorServiceImpl(
         operatorRepository.findOperatorByChatId(chatId)?.let { item ->
             conversationRepository.findConversationByOperator(item.chatId)?.let {
                 userChatId = it.users.chatId
+                userService.addRating(it.users, it.operator, it)
                 it.endDate = Date()
                 conversationRepository.save(it)
-                userService.addRating(it.users, it.operator, it)
-                messageRepository.deleteMessagesByUser(it.users.chatId)
-                item.status = Status.OPERATOR_ACTIVE
-                operatorRepository.save(item)
             }
         }
         return userChatId
     }
-
     override fun findConversationByOperator(chatId: Long): Conversation? {
         return conversationRepository.findConversationByOperator(chatId)
     }
+}
+
+
+interface OperatorStatisticsService {
+    fun getTotalOperators(): Long
+    fun findTotalWorkHours(): List<OperatorWorkHoursDto>
+
+    fun findTotalSalary(): List<OperatorSalaryDto>
+
+    fun findAverageRatings(): List<OperatorRatingDto>
+
+    fun findOperatorConversationCounts(): List<OperatorConversationDto>
+
+}
+@Service
+class OperatorStatisticsServiceImpl(
+    private val operatorRepository: OperatorRepository,
+    private val workSessionRepository: WorkSessionRepository,
+    private val conversationRepository: ConversationRepository,
+    private val ratingRepository: RatingRepository
+) : OperatorStatisticsService {
+    override fun getTotalOperators(): Long {
+        return operatorRepository.count()
+    }
+
+    override fun findTotalWorkHours(): List<OperatorWorkHoursDto> {
+        return workSessionRepository.findTotalWorkHoursRaw().map { row ->
+            val operatorName = row[0] as String
+            val totalWorkHours = (row[1] as Number).toLong()
+            OperatorWorkHoursDto(operatorName, totalWorkHours)
+        }
+    }
+
+    override fun findTotalSalary(): List<OperatorSalaryDto> {
+        return workSessionRepository.findTotalSalaryRaw().map { row ->
+            val operatorName = row[0] as String
+            val totalSalary = (row[1] as BigDecimal?) ?: BigDecimal.ZERO
+            OperatorSalaryDto(operatorName, totalSalary)
+        }
+    }
+
+
+    override fun findAverageRatings(): List<OperatorRatingDto> {
+        return ratingRepository.findAverageRatingsRaw().map { row ->
+            val operatorName = row[0] as String
+            val averageRating = (row[1] as Number).toDouble()
+            OperatorRatingDto(operatorName, averageRating)
+        }
+    }
+
+
+    override fun findOperatorConversationCounts(): List<OperatorConversationDto> {
+        return conversationRepository.findOperatorConversationCountsRaw().map { row ->
+            val operatorName = row[0] as String
+            val conversationCount = (row[1] as Number).toLong()
+            OperatorConversationDto(operatorName, conversationCount)
+        }
+    }
+
 }
