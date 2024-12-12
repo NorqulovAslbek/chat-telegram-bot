@@ -1,12 +1,10 @@
 package com.example.chattelegrambot
 
 import jakarta.transaction.Transactional
-import jakarta.ws.rs.ext.ParamConverter
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.util.*
-import kotlin.time.Duration.Companion.hours
 
 
 interface UserService {
@@ -58,11 +56,12 @@ class UserServiceImpl(
 
     override fun addUser(registerUser: RegisterUser, chatId: Long, langType: Language) {
         val user = userRepository.findUsersByChatId(chatId)
-        user?.langType=langType
-        user?.fullName=registerUser.fullName
-        user?.phone=registerUser.phoneNumber
+        user?.langType = langType
+        user?.fullName = registerUser.fullName
+        user?.phone = registerUser.phoneNumber
         userRepository.save(user!!)
     }
+
     override fun addUser(chatId: Long, status: Status) {
         userRepository.save(
             Users(status, chatId, null, null, null)
@@ -127,7 +126,7 @@ class UserServiceImpl(
 
     override fun setUserStep(chatId: Long, status: Status) {
         val user = userRepository.findUsersByChatId(chatId)
-        user?.status=status
+        user?.status = status
         userRepository.save(user!!)
 
     }
@@ -201,7 +200,7 @@ class OperatorServiceImpl(
         }
         for (queue in queueRepository.findByDeletedFalseOrderByCreatedDateAsc()) {
             for (lang in langList) {
-                if (lang==queue.language) {
+                if (lang == queue.language) {
                     return queue.users
                 }
             }
@@ -256,7 +255,7 @@ class OperatorServiceImpl(
 
     override fun setOperatorStep(chatId: Long, status: Status) {
         val operator = operatorRepository.findOperatorByChatId(chatId)
-        operator?.status=status
+        operator?.status = status
         operatorRepository.save(operator!!)
     }
 }
