@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/user-service
-    password: 123456
-    username: jdbc_user
+    url: jdbc:postgresql://localhost:5432/tgbot
+    password: 123
+    username: postgres
   jpa:
     hibernate:
       ddl-auto: create
