@@ -1,6 +1,8 @@
 package com.example.chattelegrambot
 
 import jakarta.transaction.Transactional
+import jakarta.ws.rs.ext.ParamConverter
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.util.*
@@ -20,7 +22,9 @@ interface UserService {
     fun addMessage(chatId: Long, content: String, messageId: Int) ///
     fun addConversation(chatId: Long, operator: Operator) ///
     fun addRating(user: Users, operator: Operator, conversation: Conversation) ///
-
+    fun getUserStep(chatId: Long): Status?
+    fun setUserStep(chatId: Long, status: Status)
+    fun addUser(chatId: Long, status: Status)
 }
 
 interface OperatorService {
@@ -30,31 +34,38 @@ interface OperatorService {
     fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
     fun findAvailableOperator(langType: Language): Operator?
-    fun startWork(chatId: Long, langType: Language): Users?
+    fun startWork(chatId: Long): Users?
     fun startWorkSession(chatId: Long)
     fun finishWork(chatId: Long)
     fun finishConversation(chatId: Long): Long?
     fun findConversationByOperator(chatId: Long): Conversation?
-
-
+    fun getOperatorStep(chatId: Long): Status?
+    fun setOperatorStep(chatId: Long, status: Status)
 }
 
 @Service
 class UserServiceImpl(
-
     private val messageRepository: MessageRepository,
     private val userRepository: UserRepository,
     private val queueRepository: QueueRepository,
     private val conversationRepository: ConversationRepository,
-    private val ratingRepository: RatingRepository
+    private val ratingRepository: RatingRepository,
+    private val operatorService: OperatorService
 ) : UserService {
     override fun findUser(userChatId: Long): Users? {
         return userRepository.findUsersByChatId(userChatId)
     }
 
-    override fun addUser(user: RegisterUser, chatId: Long, langType: Language) {
+    override fun addUser(registerUser: RegisterUser, chatId: Long, langType: Language) {
+        val user = userRepository.findUsersByChatId(chatId)
+        user?.langType=langType
+        user?.fullName=registerUser.fullName
+        user?.phone=registerUser.phoneNumber
+        userRepository.save(user!!)
+    }
+    override fun addUser(chatId: Long, status: Status) {
         userRepository.save(
-            Users(chatId, user.fullName!!, user.phoneNumber!!, langType, Status.USER_WRITE_MESSAGE)
+            Users(status, chatId, null, null, null)
         )
     }
 
@@ -64,7 +75,7 @@ class UserServiceImpl(
 
     override fun addQueue(chatId: Long) {
         userRepository.findUsersByChatId(chatId)?.let {
-            queueRepository.existUser(chatId) ?: queueRepository.save(Queue(it, it.langType))
+            queueRepository.existUser(chatId) ?: queueRepository.save(Queue(it, it.langType!!))
         }
     }
 
@@ -92,7 +103,7 @@ class UserServiceImpl(
     @Transactional
     override fun deleteQueue(chatId: Long) {
         userRepository.findUsersByChatId(chatId)?.let {
-            queueRepository.deleteUserFromQueue(it.chatId, it.langType)
+            queueRepository.deleteUserFromQueue(it.chatId, it.langType!!)
         }
     }
 
@@ -102,12 +113,23 @@ class UserServiceImpl(
 
     override fun addConversation(chatId: Long, operator: Operator) {
         userRepository.findUsersByChatId(chatId)?.let {
-            conversationRepository.save(Conversation(it, operator, it.langType))
+            conversationRepository.save(Conversation(it, operator, it.langType!!))
         }
     }
 
     override fun addRating(user: Users, operator: Operator, conversation: Conversation) {
         ratingRepository.save(Rating(conversation, user, operator))
+    }
+
+    override fun getUserStep(chatId: Long): Status? {
+        return userRepository.findUsersByChatId(chatId)?.status ?: operatorService.getOperatorStep(chatId)
+    }
+
+    override fun setUserStep(chatId: Long, status: Status) {
+        val user = userRepository.findUsersByChatId(chatId)
+        user?.status=status
+        userRepository.save(user!!)
+
     }
 
 }
@@ -120,12 +142,12 @@ class OperatorServiceImpl(
     private val queueRepository: QueueRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val userService: UserService,
+    @Lazy private val userService: UserService,
     private val userRepository: UserRepository
 ) : OperatorService {
     override fun addConversation(chatId: Long, user: Users) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
-            conversationRepository.save(Conversation(user, it, user.langType))
+            conversationRepository.save(Conversation(user, it, user.langType!!))
         }
     }
 
@@ -148,7 +170,7 @@ class OperatorServiceImpl(
     override fun addOperator(userId: Long, language: List<Language>): Long? {
         var userChatId: Long? = null
         userRepository.findByIdAndDeletedFalse(userId)?.let {
-            operatorRepository.save(Operator(it.chatId, it.fullName, it.phone, language))
+            operatorRepository.save(Operator(it.chatId, it.fullName!!, it.phone!!, language))
             userChatId = it.chatId
             userRepository.trash(userId)
         }
@@ -168,13 +190,24 @@ class OperatorServiceImpl(
         return operatorRepository.findAvailableOperator(langType.toString())
     }
 
-    override fun startWork(chatId: Long, langType: Language): Users? {
+    override fun startWork(chatId: Long): Users? {
+        val langList = mutableListOf<Language>()
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_ACTIVE
             operatorRepository.save(it)
             workSessionRepository.save(WorkSession(it, null, null, null))
+            for (language in it.language) {
+                langList.add(language)
+            }
         }
-        return queueRepository.findFirstUserFromQueue(langType)
+        for (queue in queueRepository.findByDeletedFalseOrderByCreatedDateAsc()) {
+            for (lang in langList) {
+                if (lang==queue.language) {
+                    return queue.users
+                }
+            }
+        }
+        return null
     }
 
     override fun startWorkSession(chatId: Long) {
@@ -217,19 +250,25 @@ class OperatorServiceImpl(
     override fun findConversationByOperator(chatId: Long): Conversation? {
         return conversationRepository.findConversationByOperator(chatId)
     }
+
+    override fun getOperatorStep(chatId: Long): Status? {
+        return operatorRepository.findOperatorByChatId(chatId)?.status ?: return null
+    }
+
+    override fun setOperatorStep(chatId: Long, status: Status) {
+        val operator = operatorRepository.findOperatorByChatId(chatId)
+        operator?.status=status
+        operatorRepository.save(operator!!)
+    }
 }
 
 
 interface OperatorStatisticsService {
     fun getTotalOperators(): Long
     fun findTotalWorkHours(): List<OperatorWorkHoursDto>
-
     fun findTotalSalary(): List<OperatorSalaryDto>
-
     fun findAverageRatings(): List<OperatorRatingDto>
-
     fun findOperatorConversationCounts(): List<OperatorConversationDto>
-
 }
 
 @Service
