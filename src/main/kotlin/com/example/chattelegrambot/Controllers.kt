@@ -102,8 +102,7 @@ class BotHandler(
                             addMessage(chatId, text, userMessage, userChatId, update.message.messageId)
                         } else if (text.equals("Ishni Yakunlash") || text.equals("Finish Work")) {
                             finishWork(chatId)
-
-                        } else if (text.equals("Suhbatni Yakunlash") || text.equals("Finish Conversation")) {
+                        } else if (text.equals("Suxbatni Yakunlash") || text.equals("Finish Conversation")) {
                             finishConversation(chatId)
 
                         }
