@@ -14,6 +14,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import java.util.*
 
 
@@ -26,11 +27,11 @@ class BotHandler(
     private val operatorService: OperatorService,
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
-        return "@chat_telegram_1_0_bot"
+        return "@javacssbot"
     }
 
     override fun getBotToken(): String {
-        return "7923535042:AAHgoQ0uf1h3zxHnidCSWBz7iszFtIbeKRA"
+        return "6517497852:AAF0Yl1ISompZm4SqdCEPAnQUAzBkdHhi6w"
     }
 
     override fun onUpdateReceived(update: Update?) {
@@ -44,27 +45,23 @@ class BotHandler(
                 when (getUserStep(chatId)) {
                     Status.USER_FULL_NAME -> {
                         val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.fullName = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
-                        sendResponse(
-                            chatId,
-                            "enter.phone.number"
-                        )
+                        userRegisterUser.fullName = text
+                        setRegistrationData(chatId, userRegisterUser)
+
+                        // ism yozilgan xabarni ochirish
+                        deleteCallBack(chatId, update.message.messageId)
+
+                        // ismini soragan xabarni olish va ochirish
+                        val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
+                        if (firstEntry != null) {
+                            deleteCallBack(firstEntry.key, firstEntry.value)
+                            getAllFullNameIdAndMessageIds().remove(firstEntry.key)
+                        }
+                        sendContactRequest(chatId) //kontakni yuborish
+
                         setUserStep(chatId, Status.USER_PHONE)
                     }
 
-                    Status.USER_PHONE -> {
-                        val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.phoneNumber = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
-                        userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
-                        removeRegistrationData(chatId)
-                        sendResponse(
-                            chatId,
-                            "write.question"
-                        )
-                        setUserStep(chatId, Status.USER_WRITE_MESSAGE)
-                    }
 
                     Status.USER_WRITE_MESSAGE -> {
                         sendWritedMessage(chatId, text, update.message.messageId)
@@ -91,6 +88,7 @@ class BotHandler(
                     Status.OPERATOR_START_WORK -> {
                         if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
                             startWork(chatId, getUserLanguage(chatId)!!)
+                            operatorService.startWorkSession(chatId)
                         }
                     }
 
@@ -118,26 +116,34 @@ class BotHandler(
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = getUserStep(chatId)
+            //// delete calback query
+            deleteCallBack(chatId, update.callbackQuery.message.messageId)
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.EN)
-                    execute(
+                    val message = execute(
                         botHandlerForMessages.sendMessage(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
+                    ////
+                    putFullNameIdAndMessageId(chatId, message.messageId)
                 }
 
-                "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
+                "${Language.UZ}_call_back_data".equals(data) && userStep == Status.USER_LANGUAGE -> {
                     setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.UZ)
-                    execute(
+
+                    val message = execute(
                         botHandlerForMessages.sendMessage(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
+                    ////
+                    putFullNameIdAndMessageId(chatId, message.messageId)
                 }
+
 
                 "1_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(1, chatId)
                 "2_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(2, chatId)
@@ -148,7 +154,41 @@ class BotHandler(
             }
 
 
+        } else if (update != null && update.hasMessage() && update.message.hasContact()) {
+            val contact = update.message.contact
+            val phoneNumber = contact.phoneNumber
+            val chatId = update.message.chatId
+
+            // Full name va xabar identifikatorlarini o‘chirish
+            val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
+            if (firstEntry != null) {
+                deleteCallBack(firstEntry.key, firstEntry.value) // Callback o‘chiriladi
+                getAllFullNameIdAndMessageIds().remove(firstEntry.key) // Mapdan olib tashlanadi
+            }
+
+            // Callback o‘chirish
+            deleteCallBack(chatId, update.message.messageId)
+
+            // Foydalanuvchi bosqichini tekshirish
+            when (getUserStep(chatId)) {
+                Status.USER_PHONE -> {
+                    val userRegisterUser: RegisterUser = getRegistrationData(chatId)
+                    userRegisterUser.phoneNumber = phoneNumber
+                    setRegistrationData(chatId, userRegisterUser) // Royxatga olish malumotlari saqlanadi
+                    userService.addUser(userRegisterUser, chatId, getUserLanguage(chatId)!!)
+                    removeRegistrationData(chatId) // Royxatga olish malumotlarini ochirish
+                    sendResponse(
+                        chatId,
+                        "write.question"
+                    )
+                    setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
+                }
+
+                else -> ""
+            }
         }
+
+
     }
 
     fun find(chatId: Long) {
@@ -458,6 +498,49 @@ class BotHandler(
             ReplyKeyboardRemove(true)
         )
         setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+    }
+
+    fun deleteCallBack(chatId: Long, messageId: Int) {
+        try {
+            execute(
+                org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage(
+                    chatId.toString(),
+                    messageId
+                )
+            )
+        } catch (e: TelegramApiException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun sendContactRequest(chatId: Long) {
+        // Keyboard tugmasi yaratiladi
+        val contactButton = KeyboardButton("\uD83D\uDCDE").apply {
+            requestContact = true // Kontaktni so‘rashni yoqish
+        }
+
+        // Klaviatura qatorini yaratish
+        val keyboardRow = KeyboardRow().apply {
+            add(contactButton)
+        }
+
+        // ReplyKeyboardMarkup ni sozlash
+        val replyKeyboardMarkup = ReplyKeyboardMarkup().apply {
+            keyboard = listOf(keyboardRow)
+            resizeKeyboard = true // Klaviatura ekranga moslashadi
+            oneTimeKeyboard = true // Tugma faqat bir marta ko‘rinadi
+        }
+
+        // Xabarni yaratish
+        val message = SendMessage().apply {
+            this.chatId = chatId.toString()
+            text = getMessageFromResourceBundle(chatId, "share.your.contact") + "☎\uFE0F"
+            replyMarkup = replyKeyboardMarkup // Klaviatura qo‘shiladi
+        }
+
+        // Xabarni yuborish
+        val sendMessages = execute(message)
+        putFullNameIdAndMessageId(chatId, sendMessages.messageId)
     }
 }
 

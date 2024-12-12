@@ -4,7 +4,6 @@ import jakarta.transaction.Transactional
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.util.*
-import kotlin.time.Duration.Companion.hours
 
 
 interface UserService {
@@ -172,7 +171,6 @@ class OperatorServiceImpl(
         operatorRepository.findOperatorByChatId(chatId)?.let {
             it.status = Status.OPERATOR_ACTIVE
             operatorRepository.save(it)
-            workSessionRepository.save(WorkSession(it, null, null, null))
         }
         return queueRepository.findFirstUserFromQueue(langType)
     }
