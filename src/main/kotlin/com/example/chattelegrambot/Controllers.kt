@@ -87,6 +87,7 @@ class BotHandler(
                     Status.OPERATOR_START_WORK -> {
                         if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
                             startWork(chatId, getUserLanguage(chatId)!!)
+                            operatorService.startWorkSession(chatId)
                         }
                     }
 
