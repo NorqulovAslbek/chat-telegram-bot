@@ -5,7 +5,8 @@ import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.*
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.send.*
+import org.telegram.telegrambots.meta.api.objects.InputFile
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
@@ -151,7 +152,6 @@ class BotHandler(
     }
 
     fun find(chatId: Long) {
-        val sendMessage: SendMessage
         when {
             userService.findUser(chatId) != null -> {
                 val user = userService.findUser(chatId)
@@ -339,7 +339,6 @@ class BotHandler(
                 chatId,
                 "sent.successfully.to.operator",
                 it.fullName
-
             )
             sendResponse(
                 it.chatId,
@@ -479,7 +478,62 @@ class BotHandlerForMessages {
         sendMessage.text = message
         sendMessage.replyMarkup = replyKeyboardRemove
         return sendMessage
+    }
 
+    fun sendPhoto(chatId: Long, fileId: String): SendPhoto {
+        return SendPhoto().apply {
+            this.chatId = chatId.toString()
+            this.photo = InputFile(fileId)
+        }
+    }
+
+    fun sendAudio(chatId: Long, fileId: String): SendAudio {
+        return SendAudio().apply {
+            this.chatId = chatId.toString()
+            this.audio = InputFile(fileId)
+        }
+    }
+
+    fun sendVideo(chatId: Long, fileId: String): SendVideo {
+        return SendVideo().apply {
+            this.chatId = chatId.toString()
+            this.video = InputFile(fileId)
+        }
+    }
+
+    fun sendAnimation(chatId: Long, fileId: String): SendAnimation {
+        return SendAnimation().apply {
+            this.chatId = chatId.toString()
+            this.animation = InputFile(fileId)
+        }
+    }
+
+    fun sendVoice(chatId: Long, fileId: String): SendVoice {
+        return SendVoice().apply {
+            this.chatId = chatId.toString()
+            this.voice = InputFile(fileId)
+        }
+    }
+
+    fun sendVideoNote(chatId: Long, fileId: String): SendVideoNote {
+        return SendVideoNote().apply {
+            this.chatId = chatId.toString()
+            this.videoNote = InputFile(fileId)
+        }
+    }
+
+    fun sendSticker(chatId: Long, fileId: String): SendSticker {
+        return SendSticker().apply {
+            this.chatId = chatId.toString()
+            this.sticker = InputFile(fileId)
+        }
+    }
+
+    fun sendDocument(chatId: Long, fileId: String): SendDocument {
+        return SendDocument().apply {
+            this.chatId = chatId.toString()
+            this.document = InputFile(fileId)
+        }
     }
 }
 
