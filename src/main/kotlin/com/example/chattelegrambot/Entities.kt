@@ -25,17 +25,17 @@ class BaseEntity(
 
 @Entity(name = "users")
 class Users(
+    @Enumerated(EnumType.STRING)
+    var status: Status,
     @Column(nullable = false)
     val chatId: Long,
-    @Column(nullable = false, length = 50)
-    var fullName: String,
-    @Column(nullable = false)
-    var phone: String,
-    @Column(nullable = false)
+//    @Column(nullable = false, length = 50)
+    var fullName: String?,
+//    @Column(nullable = false)
+    var phone: String?,
+//    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    var langType: Language,
-    @Column
-    var status: Status
+    var langType: Language?,
 ) : BaseEntity()
 
 

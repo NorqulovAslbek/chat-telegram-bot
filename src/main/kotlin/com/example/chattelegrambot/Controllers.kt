@@ -13,7 +13,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRem
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException
 import java.util.*
 
 
@@ -26,11 +25,11 @@ class BotHandler(
     private val operatorService: OperatorService,
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
-        return "@javacssbot"
+        return "@chat_telegram_1_0_bot"
     }
 
     override fun getBotToken(): String {
-        return "6517497852:AAF0Yl1ISompZm4SqdCEPAnQUAzBkdHhi6w"
+        return "7923535042:AAHgoQ0uf1h3zxHnidCSWBz7iszFtIbeKRA"
     }
 
     override fun onUpdateReceived(update: Update?) {
@@ -41,7 +40,7 @@ class BotHandler(
             if (text.equals("/start")) {
                 find(chatId)
             } else {
-                when (getUserStep(chatId)) {
+                when (userService.getUserStep(chatId)) {
                     Status.USER_FULL_NAME -> {
                         val userRegisterUser: RegisterUser = getRegistrationData(chatId)
                         userRegisterUser.fullName = text
@@ -58,9 +57,21 @@ class BotHandler(
                         }
                         sendContactRequest(chatId) //kontakni yuborish
 
-                        setUserStep(chatId, Status.USER_PHONE)
+                        userService.setUserStep(chatId, Status.USER_PHONE)
                     }
 
+                    Status.USER_PHONE -> {
+                        val userRegisterUser: RegisterUser = getRegistrationData(chatId)
+                        userRegisterUser.phoneNumber = text.toString()
+                        setRegistrationData(chatId, getRegistrationData(chatId))
+                        userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
+                        removeRegistrationData(chatId)
+                        sendResponse(
+                            chatId,
+                            "write.question"
+                        )
+                        userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                    }
 
                     Status.USER_WRITE_MESSAGE -> {
                         sendWritedMessage(chatId, text, update.message.messageId)
@@ -86,7 +97,7 @@ class BotHandler(
 
                     Status.OPERATOR_START_WORK -> {
                         if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
-                            startWork(chatId, getUserLanguage(chatId)!!)
+                            startWork(chatId)
                             operatorService.startWorkSession(chatId)
                         }
                     }
@@ -114,12 +125,12 @@ class BotHandler(
         } else if (update != null && update.hasCallbackQuery()) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
-            val userStep = getUserStep(chatId)
+            val userStep = userService.getUserStep(chatId)
             //// delete calback query
             deleteCallBack(chatId, update.callbackQuery.message.messageId)
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
-                    setUserStep(chatId, Status.USER_FULL_NAME)
+                    userService.setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.EN)
                     val message = execute(
                         botHandlerForMessages.sendMessage(
@@ -130,8 +141,8 @@ class BotHandler(
                     putFullNameIdAndMessageId(chatId, message.messageId)
                 }
 
-                "${Language.UZ}_call_back_data".equals(data) && userStep == Status.USER_LANGUAGE -> {
-                    setUserStep(chatId, Status.USER_FULL_NAME)
+                "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
+                    userService.setUserStep(chatId, Status.USER_FULL_NAME)
                     setUserLanguage(chatId, Language.UZ)
 
                     val message = execute(
@@ -142,7 +153,6 @@ class BotHandler(
                     ////
                     putFullNameIdAndMessageId(chatId, message.messageId)
                 }
-
 
                 "1_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(1, chatId)
                 "2_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(2, chatId)
@@ -169,7 +179,7 @@ class BotHandler(
             deleteCallBack(chatId, update.message.messageId)
 
             // Foydalanuvchi bosqichini tekshirish
-            when (getUserStep(chatId)) {
+            when (userService.getUserStep(chatId)) {
                 Status.USER_PHONE -> {
                     val userRegisterUser: RegisterUser = getRegistrationData(chatId)
                     userRegisterUser.phoneNumber = phoneNumber
@@ -180,14 +190,12 @@ class BotHandler(
                         chatId,
                         "write.question"
                     )
-                    setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
+                    userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
                 }
 
                 else -> ""
             }
         }
-
-
     }
 
     fun find(chatId: Long) {
@@ -195,10 +203,10 @@ class BotHandler(
         when {
             userService.findUser(chatId) != null -> {
                 val user = userService.findUser(chatId)
-                getUserStep(chatId)?.let { step ->
-                    setUserStep(chatId, getUserStep(chatId)!!)
-                } ?: setUserStep(chatId, Status.USER_WRITE_MESSAGE)
-                setUserLanguage(chatId, user!!.langType)
+                userService.getUserStep(chatId)?.let {
+                    userService.setUserStep(chatId, userService.getUserStep(chatId)!!)
+                } ?: userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                setUserLanguage(chatId, user?.langType!!)
                 sendResponse(
                     chatId,
                     "have.question"
@@ -207,9 +215,9 @@ class BotHandler(
 
             operatorService.findOperator(chatId) != null -> {
                 val operator = operatorService.findOperator(chatId)
-                getUserStep(chatId)?.let {
-                    setUserStep(chatId, getUserStep(chatId)!!)
-                } ?: setUserStep(chatId, Status.OPERATOR_START_WORK)
+                operatorService.getOperatorStep(chatId)?.let {
+                    operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
+                } ?: operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
                 setUserLanguage(chatId, operator!!.language[0])
                 sendResponse(
                     chatId,
@@ -224,7 +232,8 @@ class BotHandler(
             }
 
             else -> {
-                setUserStep(chatId, Status.USER_LANGUAGE)
+//                setUserStep(chatId, Status.USER_LANGUAGE)
+                userService.addUser(chatId, Status.USER_LANGUAGE)
                 execute(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         chatId,
@@ -237,17 +246,17 @@ class BotHandler(
         }
     }
 
-    fun startWork(chatId: Long, language: Language) {
+    fun startWork(chatId: Long) {
         var sendMessage: SendMessage
-        operatorService.startWork(chatId, language)?.let { it ->
+        operatorService.startWork(chatId)?.let { it ->
             userService.findMessagesByUser(it.chatId)?.let {
                 it.forEach { message ->
                     sendMessage = botHandlerForMessages.sendMessage(chatId, message)
                     execute(sendMessage)
                 }
             }
-            setUserStep(chatId, Status.OPERATOR_BUSY)
-            setUserStep(it.chatId, Status.USER_CHATTING)
+            operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
+            userService.setUserStep(it.chatId, Status.USER_CHATTING)
             operatorService.addConversation(chatId, it)
             userService.deleteQueue(it.chatId)
             operatorService.changeStatus(chatId, Status.OPERATOR_BUSY)
@@ -371,8 +380,8 @@ class BotHandler(
     fun sendWritedMessage(chatId: Long, message: String, messageId: Int) {
         operatorService.findAvailableOperator(getUserLanguage(chatId)!!)?.let {
             execute(botHandlerForMessages.sendMessage(it.chatId, message))
-            setUserStep(it.chatId, Status.OPERATOR_BUSY)
-            setUserStep(chatId, Status.USER_CHATTING)
+            operatorService.setOperatorStep(it.chatId, Status.OPERATOR_BUSY)
+            userService.setUserStep(chatId, Status.USER_CHATTING)
             userService.addConversation(chatId, it)
             operatorService.changeStatus(it.chatId, Status.OPERATOR_BUSY)
             sendResponse(
@@ -395,14 +404,14 @@ class BotHandler(
             )
 
         } ?: run {
-            if (getUserStep(chatId) != Status.USER_QUEUE) {
+            if (userService.getUserStep(chatId) != Status.USER_QUEUE) {
                 userService.addQueue(chatId)
             }
             sendResponse(
                 chatId,
                 "busy.operator"
             )
-            setUserStep(chatId, Status.USER_QUEUE)
+            userService.setUserStep(chatId, Status.USER_QUEUE)
             sendReplyMarkUp(
                 chatId,
                 "back",
@@ -443,19 +452,19 @@ class BotHandler(
 
     fun finishConversation(chatId: Long) {
         addRating(operatorService.finishConversation(chatId))
-        setUserStep(chatId, Status.OPERATOR_ACTIVE)
+        operatorService.setOperatorStep(chatId, Status.OPERATOR_ACTIVE)
         sendResponse(
             chatId,
             "conversation.finished.success"
         )
-        startWork(chatId, getUserLanguage(chatId)!!)
+        startWork(chatId)
 
     }
 
     fun finishWork(chatId: Long) {
         operatorService.finishWork(chatId)
         addRating(operatorService.finishConversation(chatId))
-        setUserStep(chatId, Status.OPERATOR_INACTIVE)
+        operatorService.setOperatorStep(chatId, Status.OPERATOR_INACTIVE)
         sendResponse(
             chatId,
             "work.finished.success",
@@ -487,7 +496,7 @@ class BotHandler(
 
                 else -> ""
             }
-            setUserStep(chatId, Status.USER_RATING)
+            userService.setUserStep(chatId, Status.USER_RATING)
         }
     }
 
@@ -498,7 +507,7 @@ class BotHandler(
             "write.question",
             ReplyKeyboardRemove(true)
         )
-        setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+        userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
     }
 
     fun deleteCallBack(chatId: Long, messageId: Int) {
@@ -700,7 +709,7 @@ class AdminPanelController(
     @PostMapping("/create")
     fun createOperator(@RequestBody operator: RegisterOperator) {
         operatorService.addOperator(operator.id, operator.langType)?.let {
-            removeUsersStep(it)
+//            removeUsersStep(it)
             botHandler.sendResponse(
                 it,
                 "session.expired"

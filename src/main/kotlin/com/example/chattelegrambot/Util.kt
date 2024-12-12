@@ -3,7 +3,7 @@ package com.example.chattelegrambot
 import java.math.BigDecimal
 
 
-private val usersSteps = mutableMapOf<Long, Status>()
+//private val usersSteps = mutableMapOf<Long, Status>()
 private val usersLanguage = mutableMapOf<Long, Language>()
 private val userRegistrations = mutableMapOf<Long, RegisterUser>()
 private val mapFullNameChatIdAndMessageId = mutableMapOf<Long, Int>()
@@ -15,18 +15,6 @@ fun getAllFullNameIdAndMessageIds(): LinkedHashMap<Long, Int> {
 @Synchronized
 fun putFullNameIdAndMessageId(chatId: Long, messageId: Int) {
     mapFullNameChatIdAndMessageId[chatId] = messageId
-}
-@Synchronized
-fun getUserStep(chatId: Long) = usersSteps[chatId]
-
-@Synchronized
-fun setUserStep(chatId: Long, step: Status) {
-    usersSteps[chatId] = step
-}
-
-@Synchronized
-fun removeUsersStep(chatId: Long) {
-    usersSteps.remove(chatId)
 }
 
 @Synchronized

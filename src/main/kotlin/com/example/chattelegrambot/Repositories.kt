@@ -167,6 +167,7 @@ interface QueueRepository : BaseRepository<Queue> {
     )
     fun deleteUserFromQueue(chatId: Long, language: Language)
 
+    fun findByDeletedFalseOrderByCreatedDateAsc(): List<Queue>
 }
 
 @Repository
@@ -187,6 +188,7 @@ interface RatingRepository : BaseRepository<Rating> {
 """
     )
     fun findAverageRatingsRaw(): List<Array<Any>>
+
 
 }
 
