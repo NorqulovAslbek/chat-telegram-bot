@@ -6,20 +6,16 @@ import java.math.BigDecimal
 //private val usersSteps = mutableMapOf<Long, Status>()
 private val usersLanguage = mutableMapOf<Long, Language>()
 private val userRegistrations = mutableMapOf<Long, RegisterUser>()
+private val mapFullNameChatIdAndMessageId = mutableMapOf<Long, Int>()
 val HOURLY_RATE = BigDecimal("100000")
-
-//@Synchronized
-//fun getUserStep(chatId: Long) = usersSteps[chatId]
-//
-//@Synchronized
-//fun setUserStep(chatId: Long, step: Status) {
-//    usersSteps[chatId] = step
-//}
-//
-//@Synchronized
-//fun removeUsersStep(chatId: Long) {
-//    usersSteps.remove(chatId)
-//}
+@Synchronized
+fun getAllFullNameIdAndMessageIds(): LinkedHashMap<Long, Int> {
+    return LinkedHashMap(mapFullNameChatIdAndMessageId)
+}
+@Synchronized
+fun putFullNameIdAndMessageId(chatId: Long, messageId: Int) {
+    mapFullNameChatIdAndMessageId[chatId] = messageId
+}
 
 @Synchronized
 fun setUserLanguage(chatId: Long, language: Language) {
