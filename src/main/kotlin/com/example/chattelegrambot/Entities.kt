@@ -25,14 +25,12 @@ class BaseEntity(
 @Entity(name = "users")
 class Users(
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     var status: Status,
     @Column(nullable = false)
     val chatId: Long,
-//    @Column(nullable = false, length = 50)
-    var fullName: String?,
-//    @Column(nullable = false)
-    var phone: String?,
-//    @Column(nullable = false)
+    var fullName: String? = null,
+    var phone: String? = null,
     @Enumerated(EnumType.STRING)
     var langType: Language?,
 ) : BaseEntity()
@@ -90,6 +88,9 @@ data class Message(
     @Column(nullable = false)
     val content: String,
     @Column(nullable = false)
+    val type: String,
+    val caption: String? = null,
+    @Column(nullable = false)
     val messageId: Int
 ) : BaseEntity()
 
@@ -111,6 +112,7 @@ data class WorkSession(
     @ManyToOne
     var operator: Operator,
     var workHour: Int?,
+    var workMinute: Int?,
     var salary: BigDecimal?,
     var endDate: Date?
 ) : BaseEntity()
