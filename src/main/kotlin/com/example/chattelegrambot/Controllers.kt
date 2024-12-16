@@ -110,7 +110,7 @@ class BotHandler(
 
                     Status.USER_QUEUE -> {
                         if (text != null) {
-                            if (text.equals("Orqaga\uD83D\uDD19") || text.equals("Back\uD83D\uDD19")) {
+                            if (text.equals("Orqaga") || text.equals("Back")) {
                                 userService.deleteQueue(chatId)
                                 userService.deleteMessage(chatId)
                                 sendResponse(
@@ -284,31 +284,44 @@ class BotHandler(
 
     fun startWork(chatId: Long) {
         operatorService.startWork(chatId)?.let { it ->
-            operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
-            userService.setUserStep(it.chatId, Status.USER_CHATTING)
-            userService.findMessagesByUser(it.chatId)?.let {
-                it.forEach { message ->
-                    botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+            try {
+                sendResponse(
+                    it.chatId,
+                    "sent.successfully.to.operator",
+                    operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
+                )
+                userService.findMessagesByUser(it.chatId)?.let {
+                    it.forEach { message ->
+                        botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+                    }
+                }
+                operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
+                userService.setUserStep(it.chatId, Status.USER_CHATTING)
+                operatorService.addConversation(chatId, it)
+                userService.deleteQueue(it.chatId)
+                sendResponse(
+                    chatId,
+                    "start.conversation",
+                    it.fullName
+                )
+                sendReplyMarkUp(
+                    chatId,
+                    "finish.work",
+                    "finish.conversation",
+                    "message.for.finish"
+                )
+
+            } catch (tae: TelegramApiException) {
+                tae.message?.let { item ->
+                    if (item.contains("Forbidden: bot was blocked by the user")) {
+                        userService.setUserStep(it.chatId, Status.USER_BLOCKED)
+                        userService.deleteQueue(it.chatId)
+                        userService.deleteMessage(it.chatId)
+                        sendResponse(chatId, "user.blocked.queue")
+                        startWork(chatId)
+                    }
                 }
             }
-            operatorService.addConversation(chatId, it)
-            userService.deleteQueue(it.chatId)
-            sendResponse(
-                chatId,
-                "start.conversation",
-                it.fullName
-            )
-            sendReplyMarkUp(
-                chatId,
-                "finish.work",
-                "finish.conversation",
-                "message.for.finish"
-            )
-            sendResponse(
-                it.chatId,
-                "sent.successfully.to.operator",
-                operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
-            )
         } ?: run {
             sendResponse(
                 chatId,

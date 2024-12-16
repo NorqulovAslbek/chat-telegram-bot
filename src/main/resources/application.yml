@@ -5,8 +5,13 @@ spring:
     username: postgres
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
 
 server:
   port: 8081
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+
 
