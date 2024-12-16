@@ -117,7 +117,7 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
 
     @Query(
         """
-    SELECT w.operator.fullName, SUM(w.workHour) 
+    SELECT w.operator.fullName,SUM(w.workMinute) / 60.0
     FROM workSessions w 
     GROUP BY w.operator.fullName
 """
@@ -127,7 +127,7 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
 
     @Query(
         """
-    SELECT w.operator.fullName, SUM(w.salary) 
+    SELECT w.operator.fullName, SUM(w.salary*1.0) 
     FROM workSessions w 
     GROUP BY w.operator.fullName
 """

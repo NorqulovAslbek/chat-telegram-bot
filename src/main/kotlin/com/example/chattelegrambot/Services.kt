@@ -4,7 +4,10 @@ import jakarta.transaction.Transactional
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.*
+import kotlin.time.Duration as Duration
 
 
 interface UserService {
@@ -250,24 +253,58 @@ class OperatorServiceImpl(
     }
 
 
-    override fun finishWork(chatId: Long) {
-        operatorRepository.findOperatorByChatId(chatId)?.let {
-            it.status = Status.OPERATOR_INACTIVE
-            operatorRepository.save(it)
-            val workSession = workSessionRepository.getTodayWorkSession(chatId)
-            val startDate = workSession.createdDate
-            val endDate = Date()
-            var workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
-            var workMinute = (endDate.time - startDate.time) / (1000 * 60)
+//    override fun finishWork(chatId: Long) {
+//        operatorRepository.findOperatorByChatId(chatId)?.let {
+//            it.status = Status.OPERATOR_INACTIVE
+//            operatorRepository.save(it)
+//            val workSession = workSessionRepository.getTodayWorkSession(chatId)
+//            val startDate = workSession.createdDate
+//            val endDate = Date()
+//            var workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
+//            var workMinute = (endDate.time - startDate.time) / (1000 * 60)
+//
+//            workSession.endDate = endDate
+//            workSession.workHour = workHour.toInt()
+//            workSession.workMinute = workMinute.toInt()
+//            workSession.salary =
+//                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60")) * HOURLY_RATE)
+//            workSessionRepository.save(workSession)
+//        }
+//    }
 
-            workSession.endDate = endDate
-            workSession.workHour = workHour.toInt()
-            workSession.workMinute = workMinute.toInt()
-            workSession.salary =
-                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60")) * HOURLY_RATE)
+    override fun finishWork(chatId: Long) {
+        operatorRepository.findOperatorByChatId(chatId)?.let { operator ->
+            // Operatorni faolsiz holatga o'tkazish
+            operator.status = Status.OPERATOR_INACTIVE
+            operatorRepository.save(operator)
+
+            // Ish boshlanish va tugash vaqtlari
+            val workSession = workSessionRepository.getTodayWorkSession(chatId)
+            val startDate = workSession.createdDate!!.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+            val endDate = LocalDateTime.now()
+
+            // Sekundlar orasidagi farqni hisoblash
+            val duration = java.time.Duration.between(startDate, endDate)
+            val totalSeconds = duration.seconds
+            val totalHours = totalSeconds / 3600
+            val remainingSeconds = totalSeconds % 3600
+            val totalMinutes = remainingSeconds / 60
+
+            // Ish haqi hisoblash
+            val hourlyRate = HOURLY_RATE // Soatlik stavka
+            val salary = (totalHours.toBigDecimal() * hourlyRate).toDouble() +
+                    ((remainingSeconds.toBigDecimal().toDouble()/BigDecimal(3600).toDouble()) * hourlyRate.toDouble())
+
+            // Sessionni yangilash
+            workSession.endDate = java.util.Date.from(endDate.atZone(ZoneId.systemDefault()).toInstant())
+            workSession.workHour = totalHours.toInt()
+            workSession.workMinute = totalMinutes.toInt()
+            workSession.salary = salary
+
             workSessionRepository.save(workSession)
         }
     }
+
 
     @Transactional
     override fun finishConversation(chatId: Long): Long? {
@@ -329,7 +366,7 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalWorkHours(): List<OperatorWorkHoursDto> {
         return workSessionRepository.findTotalWorkHoursRaw().map { row ->
             val operatorName = row[0] as String
-            val totalWorkHours = (row[1] as Number).toLong()
+            val totalWorkHours = (row[1] as Number).toDouble()
             OperatorWorkHoursDto(operatorName, totalWorkHours)
         }
     }
@@ -337,10 +374,11 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalSalary(): List<OperatorSalaryDto> {
         return workSessionRepository.findTotalSalaryRaw().map { row ->
             val operatorName = row[0] as String
-            val totalSalary = (row[1] as BigDecimal?) ?: BigDecimal.ZERO
+            val totalSalary = (row[1] as? Double) ?: 0.0
             OperatorSalaryDto(operatorName, totalSalary)
         }
     }
+
 
 
     override fun findAverageRatings(): List<OperatorRatingDto> {

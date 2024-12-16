@@ -1,0 +1,15 @@
+### reyting
+GET localhost:8081/api/operators/statistics/ratings
+Content-Type: application/json
+
+### total admin
+GET localhost:8081/api/operators/statistics/total
+Content-Type: application/json
+
+###
+GET localhost:8081/api/operators/statistics/work-hours
+Content-Type: application/json
+
+###
+GET localhost:8081/api/operators/statistics/salary
+Content-Type: application/json

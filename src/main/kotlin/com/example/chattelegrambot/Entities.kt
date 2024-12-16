@@ -113,6 +113,6 @@ data class WorkSession(
     var operator: Operator,
     var workHour: Int?,
     var workMinute: Int?,
-    var salary: BigDecimal?,
+    var salary: Double?,
     var endDate: Date?
 ) : BaseEntity()

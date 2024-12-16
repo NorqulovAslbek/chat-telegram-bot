@@ -17,6 +17,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException
 import java.util.*
 
 
@@ -874,13 +875,14 @@ class OperatorStatisticsController(
     private val operatorStatisticsService: OperatorStatisticsService
 ) {
 
-    @GetMapping("/total")
-    fun getTotalOperators(): Long {
-        return operatorStatisticsService.getTotalOperators()
+    @GetMapping("/total")  ///
+    fun getTotalOperators(): AdminCount {
+        val totalOperators = operatorStatisticsService.getTotalOperators()
+        return AdminCount(totalOperators)
     }
 
 
-    @GetMapping("/work-hours")
+    @GetMapping("/work-hours") ///
     fun getTotalWorkHours(): List<OperatorWorkHoursDto> {
         return operatorStatisticsService.findTotalWorkHours()
     }
@@ -890,12 +892,12 @@ class OperatorStatisticsController(
         return operatorStatisticsService.findTotalSalary()
     }
 
-    @GetMapping("/ratings")//ortacha
+    @GetMapping("/ratings")///
     fun getAverageRatings(): List<OperatorRatingDto> {
         return operatorStatisticsService.findAverageRatings()
     }
 
-    @GetMapping("/conversations")
+    @GetMapping("/conversations") ///
     fun getTotalConversations(): List<OperatorConversationDto> {
         return operatorStatisticsService.findOperatorConversationCounts()
     }
