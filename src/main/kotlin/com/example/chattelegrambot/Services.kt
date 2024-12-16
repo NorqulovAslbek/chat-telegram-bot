@@ -257,14 +257,14 @@ class OperatorServiceImpl(
             val workSession = workSessionRepository.getTodayWorkSession(chatId)
             val startDate = workSession.createdDate
             val endDate = Date()
-            var workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
-            var workMinute = (endDate.time - startDate.time) / (1000 * 60)
+            val workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
+            val workMinute = ((endDate.time - startDate.time) / (1000 * 60)) % 60
 
             workSession.endDate = endDate
             workSession.workHour = workHour.toInt()
             workSession.workMinute = workMinute.toInt()
             workSession.salary =
-                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60")) * HOURLY_RATE)
+                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60.00")) * HOURLY_RATE)
             workSessionRepository.save(workSession)
         }
     }

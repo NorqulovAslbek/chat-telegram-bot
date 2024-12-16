@@ -5,7 +5,7 @@ import java.math.BigDecimal
 
 private val userRegistrations = mutableMapOf<Long, RegisterUser>()
 private val mapFullNameChatIdAndMessageId = mutableMapOf<Long, Int>()
-val HOURLY_RATE = BigDecimal("100000")
+val HOURLY_RATE = BigDecimal("100000.00")
 
 
 @Synchronized
