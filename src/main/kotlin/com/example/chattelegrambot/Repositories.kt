@@ -99,7 +99,7 @@ order by o.id
 limit 1
     """, nativeQuery = true
     )
-    fun findAvailableOperator(@Param("language")language: String): Operator?
+    fun findAvailableOperator(@Param("language") language: String): Operator?
 
 
 }
@@ -197,11 +197,11 @@ interface MessageRepository : BaseRepository<Message> {
 
     @Query(
         """
-        select m.content from messages m
+        select m from messages m
         where m.senderId = ?1 and m.conversation is null and m.deleted = false
     """
     )
-    fun findMessagesByUser(chatId: Long): List<String>?
+    fun findMessagesByUser(chatId: Long): List<Message>?
 
     @Query(
         """
@@ -212,6 +212,16 @@ interface MessageRepository : BaseRepository<Message> {
     """
     )
     fun findMessageByUser(chatId: Long, content: String): Message?
+
+    @Query(
+        """
+        select m from messages m
+        where m.senderId = ?1 and m.conversation is null and m.deleted = false
+        order by m.createdDate desc
+        limit 1
+    """
+    )
+    fun findFirstMessageByUser(chatId: Long): Message?
 
     @Modifying
     @Query(

@@ -3,32 +3,23 @@ package com.example.chattelegrambot
 import java.math.BigDecimal
 
 
-//private val usersSteps = mutableMapOf<Long, Status>()
-private val usersLanguage = mutableMapOf<Long, Language>()
 private val userRegistrations = mutableMapOf<Long, RegisterUser>()
 private val mapFullNameChatIdAndMessageId = mutableMapOf<Long, Int>()
-val HOURLY_RATE = BigDecimal("100000")
+val HOURLY_RATE = BigDecimal("100000.00")
+
+
 @Synchronized
-fun getAllFullNameIdAndMessageIds(): LinkedHashMap<Long, Int> {
-    return LinkedHashMap(mapFullNameChatIdAndMessageId)
-}
+fun getAllFullNameIdAndMessageIds(chatId: Long) = mapFullNameChatIdAndMessageId[chatId]
+
+
 @Synchronized
 fun putFullNameIdAndMessageId(chatId: Long, messageId: Int) {
     mapFullNameChatIdAndMessageId[chatId] = messageId
 }
 
 @Synchronized
-fun setUserLanguage(chatId: Long, language: Language) {
-    usersLanguage[chatId] = language
-}
+fun removeMapFullNameChatIdAndMessageId(chatId: Long) = mapFullNameChatIdAndMessageId.remove(chatId)
 
-@Synchronized
-fun getUserLanguage(chatId: Long) = usersLanguage[chatId]
-
-@Synchronized
-fun removeUserLanguage(chatId: Long) {
-    usersLanguage.remove(chatId)
-}
 
 @Synchronized
 fun getRegistrationData(chatId: Long) = userRegistrations.getOrPut(chatId) { RegisterUser() }

@@ -9,25 +9,30 @@ import java.util.*
 
 interface UserService {
     fun findUser(userChatId: Long): Users? //
-    fun addUser(user: RegisterUser, chatId: Long, langType: Language) //
-    fun findMessagesByUser(userChatId: Long): List<String>? //
+    fun addUser(user: RegisterUser, chatId: Long) //
+    fun findMessagesByUser(userChatId: Long): List<Message>? //
     fun addQueue(chatId: Long) //
     fun addRatingScore(score: Int, chatId: Long)
     fun findConversationByUser(userChatId: Long): Conversation?
     fun deleteMessage(chatId: Long)
     fun findMessageByUser(chatId: Long, message: String): Message?
+    fun addConversationToMessage(chatId: Long)
+    fun addConversationToMessage(chatId: Long, content: String)
     fun deleteQueue(chatId: Long) ///
-    fun addMessage(chatId: Long, content: String, messageId: Int) ///
+    fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) ///
     fun addConversation(chatId: Long, operator: Operator) ///
     fun addRating(user: Users, operator: Operator, conversation: Conversation) ///
     fun getUserStep(chatId: Long): Status?
     fun setUserStep(chatId: Long, status: Status)
     fun addUser(chatId: Long, status: Status)
+    fun addLanguage(chatId: Long, langType: Language)
+    fun getUserLanguage(chatId: Long): List<Language>?
+    fun deleteUser(chatId: Long)
 }
 
 interface OperatorService {
     fun addConversation(chatId: Long, user: Users)
-    fun addMessage(chatId: Long, content: String, userMessage: String, userChatId: Long, operatorMessageId: Int)
+    fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int)
     fun addOperator(userId: Long, language: List<Language>): Long?
     fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
@@ -38,6 +43,7 @@ interface OperatorService {
     fun finishConversation(chatId: Long): Long?
     fun findConversationByOperator(chatId: Long): Conversation?
     fun getOperatorStep(chatId: Long): Status?
+    fun getOperatorLanguage(chatId: Long): List<Language>?
     fun setOperatorStep(chatId: Long, status: Status)
 }
 
@@ -54,9 +60,9 @@ class UserServiceImpl(
         return userRepository.findUsersByChatId(userChatId)
     }
 
-    override fun addUser(registerUser: RegisterUser, chatId: Long, langType: Language) {
+    override fun addUser(registerUser: RegisterUser, chatId: Long) {
         val user = userRepository.findUsersByChatId(chatId)
-        user?.langType = langType
+        user?.langType = registerUser.langType
         user?.fullName = registerUser.fullName
         user?.phone = registerUser.phoneNumber
         userRepository.save(user!!)
@@ -68,7 +74,7 @@ class UserServiceImpl(
         )
     }
 
-    override fun findMessagesByUser(userChatId: Long): List<String>? {
+    override fun findMessagesByUser(userChatId: Long): List<Message>? {
         return messageRepository.findMessagesByUser(userChatId)
     }
 
@@ -99,6 +105,24 @@ class UserServiceImpl(
         return messageRepository.findMessageByUser(chatId, message)
     }
 
+    override fun addConversationToMessage(chatId: Long) {
+        conversationRepository.findConversationByUser(chatId)?.let { item ->
+            messageRepository.findFirstMessageByUser(chatId)?.let {
+                it.conversation = item
+                messageRepository.save(it)
+            }
+        }
+    }
+
+    override fun addConversationToMessage(chatId: Long, content: String) {
+        conversationRepository.findConversationByUser(chatId)?.let { item ->
+            messageRepository.findMessageByUser(chatId, content)?.let {
+                it.conversation = item
+                messageRepository.save(it)
+            }
+        }
+    }
+
     @Transactional
     override fun deleteQueue(chatId: Long) {
         userRepository.findUsersByChatId(chatId)?.let {
@@ -106,8 +130,8 @@ class UserServiceImpl(
         }
     }
 
-    override fun addMessage(chatId: Long, content: String, messageId: Int) {
-        messageRepository.save(Message(null, chatId, SenderType.USER, content, messageId))
+    override fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) {
+        messageRepository.save(Message(null, chatId, SenderType.USER, content, type, caption, messageId))
     }
 
     override fun addConversation(chatId: Long, operator: Operator) {
@@ -131,6 +155,27 @@ class UserServiceImpl(
 
     }
 
+    override fun addLanguage(chatId: Long, langType: Language) {
+        userRepository.findUsersByChatId(chatId)?.let {
+            it.langType = langType
+            userRepository.save(it)
+        }
+    }
+
+    override fun getUserLanguage(chatId: Long): List<Language>? {
+        userRepository.findUsersByChatId(chatId)?.let {
+            return listOf(it.langType!!)
+        } ?: run {
+            return operatorService.getOperatorLanguage(chatId)
+        }
+    }
+
+    override fun deleteUser(chatId: Long) {
+        userRepository.findUsersByChatId(chatId)?.let {
+            userRepository.deleteById(it.id!!)
+        }
+    }
+
 }
 
 
@@ -150,19 +195,9 @@ class OperatorServiceImpl(
         }
     }
 
-    override fun addMessage(
-        chatId: Long,
-        content: String,
-        userMessage: String,
-        userChatId: Long,
-        operatorMessageId: Int
-    ) {
+    override fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) {
         conversationRepository.findConversationByOperator(chatId)?.let { item ->
-            messageRepository.save(Message(item, chatId, SenderType.OPERATOR, content, operatorMessageId))
-            messageRepository.findMessageByUser(userChatId, userMessage)?.let {
-                it.conversation = item
-                messageRepository.save(it)
-            }
+            messageRepository.save(Message(item, chatId, SenderType.OPERATOR, content, type, caption, messageId))
         }
     }
 
@@ -210,7 +245,7 @@ class OperatorServiceImpl(
 
     override fun startWorkSession(chatId: Long) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
-            workSessionRepository.save(WorkSession(it, null, null, null))
+            workSessionRepository.save(WorkSession(it, null, null, null, null))
         }
     }
 
@@ -223,10 +258,13 @@ class OperatorServiceImpl(
             val startDate = workSession.createdDate
             val endDate = Date()
             val workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
+            val workMinute = ((endDate.time - startDate.time) / (1000 * 60)) % 60
 
             workSession.endDate = endDate
             workSession.workHour = workHour.toInt()
-            workSession.salary = workHour.toBigDecimal() * HOURLY_RATE
+            workSession.workMinute = workMinute.toInt()
+            workSession.salary =
+                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60.00")) * HOURLY_RATE)
             workSessionRepository.save(workSession)
         }
     }
@@ -251,6 +289,10 @@ class OperatorServiceImpl(
 
     override fun getOperatorStep(chatId: Long): Status? {
         return operatorRepository.findOperatorByChatId(chatId)?.status ?: return null
+    }
+
+    override fun getOperatorLanguage(chatId: Long): List<Language>? {
+        return operatorRepository.findOperatorByChatId(chatId)?.language ?: return null
     }
 
     override fun setOperatorStep(chatId: Long, status: Status) {

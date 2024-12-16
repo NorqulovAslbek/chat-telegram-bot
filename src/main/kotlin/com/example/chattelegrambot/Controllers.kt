@@ -1,11 +1,14 @@
 package com.example.chattelegrambot
 
 import org.springframework.context.MessageSource
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.*
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.send.*
+import org.telegram.telegrambots.meta.api.objects.InputFile
+import org.telegram.telegrambots.meta.api.objects.Message
 import org.telegram.telegrambots.meta.api.objects.Update
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
@@ -19,7 +22,7 @@ import java.util.*
 
 @Component
 class BotHandler(
-    private val botHandlerForMessages: BotHandlerForMessages,
+    @Lazy private val botHandlerForMessages: BotHandlerForMessages,
     private val botHandlerForReplyMarkUp: BotHandlerForReplyMarkUp,
     private val userService: UserService,
     private val messageSource: MessageSource,
@@ -34,87 +37,150 @@ class BotHandler(
     }
 
     override fun onUpdateReceived(update: Update?) {
-        if (update != null && update.hasMessage() && update.message.hasText()) {
-            val text = update.message.text
+        if (update != null && update.hasMessage() && update.message.hasContact()) {
+            val contact = update.message.contact
+            val phoneNumber = contact.phoneNumber
             val chatId = update.message.chatId
 
-            if (text.equals("/start")) {
-                find(chatId)
+            if (contact.userId != chatId) {
+                sendResponse(chatId, "contact.error")
             } else {
+                // Full name va xabar identifikatorlarini o‘chirish
+                val messageId = getAllFullNameIdAndMessageIds(chatId)
+                if (messageId != null) {
+                    deleteCallBack(chatId, messageId) // Callback o‘chiriladi
+                    removeMapFullNameChatIdAndMessageId(chatId)// Mapdan olib tashlanadi
+                }
+
+                // Callback o‘chirish
+                deleteCallBack(chatId, update.message.messageId)
+
+                // Foydalanuvchi bosqichini tekshirish
                 when (userService.getUserStep(chatId)) {
-                    Status.USER_FULL_NAME -> {
-                        val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.fullName = text
-                        setRegistrationData(chatId, userRegisterUser)
-
-                        // ism yozilgan xabarni ochirish
-                        deleteCallBack(chatId, update.message.messageId)
-
-                        // ismini soragan xabarni olish va ochirish
-                        val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
-                        if (firstEntry != null) {
-                            deleteCallBack(firstEntry.key, firstEntry.value)
-                            getAllFullNameIdAndMessageIds().remove(firstEntry.key)
-                        }
-                        sendContactRequest(chatId) //kontakni yuborish
-
-                        userService.setUserStep(chatId, Status.USER_PHONE)
-                    }
-
                     Status.USER_PHONE -> {
                         val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                        userRegisterUser.phoneNumber = text.toString()
-                        setRegistrationData(chatId, getRegistrationData(chatId))
-                        userService.addUser(getRegistrationData(chatId), chatId, getUserLanguage(chatId)!!)
-                        removeRegistrationData(chatId)
+                        userRegisterUser.phoneNumber = phoneNumber
+                        setRegistrationData(chatId, userRegisterUser) // Royxatga olish malumotlari saqlanadi
+                        userService.addUser(userRegisterUser, chatId)
+                        removeRegistrationData(chatId) // Royxatga olish malumotlarini ochirish
                         sendResponse(
                             chatId,
                             "write.question"
                         )
-                        userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                        userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
+                    }
+
+                    else -> ""
+                }
+            }
+        } else if (update != null && update.hasMessage()) {
+            val chatId = update.message.chatId
+            val message = update.message
+            val mId = update.message.messageId
+            val text = update.message.text
+
+            if (text != null && text.equals("/start")) {
+                find(chatId)
+            } else {
+                when (userService.getUserStep(chatId)) {
+                    Status.USER_FULL_NAME -> {
+                        if (text != null) {
+                            val userRegisterUser: RegisterUser = getRegistrationData(chatId)
+                            userRegisterUser.fullName = text
+                            setRegistrationData(chatId, userRegisterUser)
+
+                            // ism yozilgan xabarni ochirish
+                            deleteCallBack(chatId, update.message.messageId)
+
+                            // ismini soragan xabarni olish va ochirish
+                            val messageId = getAllFullNameIdAndMessageIds(chatId)
+                            if (messageId != null) {
+                                deleteCallBack(chatId, messageId)
+                                removeMapFullNameChatIdAndMessageId(chatId)
+                            }
+                            sendContactRequest(chatId) //kontakni yuborish
+
+                            userService.setUserStep(chatId, Status.USER_PHONE)
+                        }
                     }
 
                     Status.USER_WRITE_MESSAGE -> {
-                        sendWritedMessage(chatId, text, update.message.messageId)
+                        sendWritedMessage(chatId, update.message, update.message.messageId)
                     }
 
                     Status.USER_QUEUE -> {
-                        if (text.equals("Orqaga\uD83D\uDD19") || text.equals("Back\uD83D\uDD19")) {
-                            userService.deleteQueue(chatId)
-                            userService.deleteMessage(chatId)
-                            sendResponse(
-                                chatId,
-                                "not.answer.delete",
-                            )
+                        if (text != null) {
+                            if (text.equals("Orqaga") || text.equals("Back")) {
+                                userService.deleteQueue(chatId)
+                                userService.deleteMessage(chatId)
+                                sendResponse(
+                                    chatId,
+                                    "not.answer.delete", ReplyKeyboardRemove(true)
+                                )
+                                find(chatId)
+                            } else {
+                                addMessageForUser(chatId, update.message, update.message.messageId)
+                            }
                         } else {
-                            addMessage(chatId, text, update.message.messageId)
+                            addMessageForUser(chatId, update.message, update.message.messageId)
                         }
                     }
 
                     Status.USER_CHATTING -> {
-                        findConversation(chatId, text, update.message.messageId)
-
+                        findConversation(chatId, message, mId)
                     }
 
                     Status.OPERATOR_START_WORK -> {
-                        if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
-                            startWork(chatId)
-                            operatorService.startWorkSession(chatId)
+                        if (text != null) {
+                            if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
+                                startWork(chatId)
+                                operatorService.startWorkSession(chatId)
+                            }
+                        }
+                    }
+
+                    Status.OPERATOR_ACTIVE -> {
+                        if (text != null) {
+                            if (text.equals("Ishni Yakunlash") || text.equals("Finish Work")) {
+                                finishWork(chatId)
+                            }
                         }
                     }
 
                     Status.OPERATOR_BUSY -> {
-                        if (update.message.isReply) {
-                            val userChatId = operatorService.findConversationByOperator(chatId)?.users?.chatId
-                            val userMessage = update.message.replyToMessage.text
-                            val messageId = userService.findMessageByUser(userChatId!!, userMessage)?.messageId
-                            sendReplyMessage(userChatId, text, messageId!!)
-                            addMessage(chatId, text, userMessage, userChatId, update.message.messageId)
-                        } else if (text.equals("Ishni Yakunlash") || text.equals("Finish Work")) {
+                        if (text != null && (text.equals("Ishni Yakunlash") || text.equals("Finish Work"))) {
                             finishWork(chatId)
-                        } else if (text.equals("Suxbatni Yakunlash") || text.equals("Finish Conversation")) {
+                        } else if (text != null && (text.equals("Suhbatni Yakunlash") || text.equals("Finish Conversation"))) {
                             finishConversation(chatId)
-
+                        } else {
+                            val userChatId = operatorService.findConversationByOperator(chatId)?.users?.chatId
+                            try {
+                                if (update.message.isReply) {
+                                    val userMessageContent =
+                                        botHandlerForMessages.getContent(update.message.replyToMessage)
+                                    val userMessage =
+                                        userMessageContent?.let { userService.findMessageByUser(userChatId!!, it) }
+                                    if (userMessage != null) {
+                                        sendReplyMessage(userChatId!!, message, userMessage.messageId)
+                                        addReplyMessageForOperator(
+                                            chatId,
+                                            message,
+                                            mId,
+                                            userChatId,
+                                            userMessageContent
+                                        )
+                                    }
+                                } else {
+                                    botHandlerForMessages.sendMessage(userChatId!!, message)
+                                    addMessageForOperator(chatId, message, mId, userChatId)
+                                }
+                            } catch (tae: TelegramApiException) {
+                                tae.message?.let {
+                                    if (it.contains("Forbidden: bot was blocked by the user")) {
+                                        sendResponse(chatId, "user.blocked")
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -131,9 +197,12 @@ class BotHandler(
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     userService.setUserStep(chatId, Status.USER_FULL_NAME)
-                    setUserLanguage(chatId, Language.EN)
+                    val registerUser = getRegistrationData(chatId)
+                    registerUser.langType = Language.EN
+                    setRegistrationData(chatId, registerUser)
+                    userService.addLanguage(chatId, Language.EN)
                     val message = execute(
-                        botHandlerForMessages.sendMessage(
+                        botHandlerForMessages.sendText(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
@@ -143,10 +212,14 @@ class BotHandler(
 
                 "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     userService.setUserStep(chatId, Status.USER_FULL_NAME)
-                    setUserLanguage(chatId, Language.UZ)
+                    val registerUser = getRegistrationData(chatId)
+                    registerUser.langType = Language.UZ
+                    setRegistrationData(chatId, registerUser)
+                    userService.addLanguage(chatId, Language.UZ)
+
 
                     val message = execute(
-                        botHandlerForMessages.sendMessage(
+                        botHandlerForMessages.sendText(
                             chatId, getMessageFromResourceBundle(chatId, "enter.name")
                         )
                     )
@@ -163,66 +236,26 @@ class BotHandler(
             }
 
 
-        } else if (update != null && update.hasMessage() && update.message.hasContact()) {
-            val contact = update.message.contact
-            val phoneNumber = contact.phoneNumber
-            val chatId = update.message.chatId
-
-            // Full name va xabar identifikatorlarini o‘chirish
-            val firstEntry = getAllFullNameIdAndMessageIds().entries.firstOrNull()
-            if (firstEntry != null) {
-                deleteCallBack(firstEntry.key, firstEntry.value) // Callback o‘chiriladi
-                getAllFullNameIdAndMessageIds().remove(firstEntry.key) // Mapdan olib tashlanadi
-            }
-
-            // Callback o‘chirish
-            deleteCallBack(chatId, update.message.messageId)
-
-            // Foydalanuvchi bosqichini tekshirish
-            when (userService.getUserStep(chatId)) {
-                Status.USER_PHONE -> {
-                    val userRegisterUser: RegisterUser = getRegistrationData(chatId)
-                    userRegisterUser.phoneNumber = phoneNumber
-                    setRegistrationData(chatId, userRegisterUser) // Royxatga olish malumotlari saqlanadi
-                    userService.addUser(userRegisterUser, chatId, getUserLanguage(chatId)!!)
-                    removeRegistrationData(chatId) // Royxatga olish malumotlarini ochirish
-                    sendResponse(
-                        chatId,
-                        "write.question"
-                    )
-                    userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE) // Foydalanuvchi bosqichi yangilanadi
-                }
-
-                else -> ""
-            }
         }
     }
 
     fun find(chatId: Long) {
-        val sendMessage: SendMessage
         when {
-            userService.findUser(chatId) != null -> {
-                val user = userService.findUser(chatId)
-                userService.getUserStep(chatId)?.let {
-                    userService.setUserStep(chatId, userService.getUserStep(chatId)!!)
-                } ?: userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
-                setUserLanguage(chatId, user?.langType!!)
+            userService.findUser(chatId)?.phone != null -> {
+                userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
                 sendResponse(
                     chatId,
-                    "have.question"
+                    "have.question", ReplyKeyboardRemove(true)
                 )
             }
 
             operatorService.findOperator(chatId) != null -> {
                 val operator = operatorService.findOperator(chatId)
-                operatorService.getOperatorStep(chatId)?.let {
-                    operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
-                } ?: operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
-                setUserLanguage(chatId, operator!!.language[0])
+                operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
                 sendResponse(
                     chatId,
                     "hello",
-                    operator.fullName
+                    operator?.fullName
                 )
                 sendReplyMarkUp(
                     chatId,
@@ -232,8 +265,11 @@ class BotHandler(
             }
 
             else -> {
-//                setUserStep(chatId, Status.USER_LANGUAGE)
-                userService.addUser(chatId, Status.USER_LANGUAGE)
+                if (userService.findUser(chatId) == null) {
+                    userService.addUser(chatId, Status.USER_LANGUAGE)
+                } else {
+                    userService.deleteUser(chatId)
+                }
                 execute(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         chatId,
@@ -247,69 +283,51 @@ class BotHandler(
     }
 
     fun startWork(chatId: Long) {
-        var sendMessage: SendMessage
         operatorService.startWork(chatId)?.let { it ->
-            userService.findMessagesByUser(it.chatId)?.let {
-                it.forEach { message ->
-                    sendMessage = botHandlerForMessages.sendMessage(chatId, message)
-                    execute(sendMessage)
+            try {
+                sendResponse(
+                    it.chatId,
+                    "sent.successfully.to.operator",
+                    operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
+                )
+                userService.findMessagesByUser(it.chatId)?.let {
+                    it.forEach { message ->
+                        botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+                    }
+                }
+                operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
+                userService.setUserStep(it.chatId, Status.USER_CHATTING)
+                operatorService.addConversation(chatId, it)
+                userService.deleteQueue(it.chatId)
+                sendResponse(
+                    chatId,
+                    "start.conversation",
+                    it.fullName
+                )
+                sendReplyMarkUp(
+                    chatId,
+                    "finish.work",
+                    "finish.conversation",
+                    "message.for.finish"
+                )
+
+            } catch (tae: TelegramApiException) {
+                tae.message?.let { item ->
+                    if (item.contains("Forbidden: bot was blocked by the user")) {
+                        userService.setUserStep(it.chatId, Status.USER_BLOCKED)
+                        userService.deleteQueue(it.chatId)
+                        userService.deleteMessage(it.chatId)
+                        sendResponse(chatId, "user.blocked.queue")
+                        startWork(chatId)
+                    }
                 }
             }
-            operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
-            userService.setUserStep(it.chatId, Status.USER_CHATTING)
-            operatorService.addConversation(chatId, it)
-            userService.deleteQueue(it.chatId)
-            operatorService.changeStatus(chatId, Status.OPERATOR_BUSY)
-            sendResponse(
-                chatId,
-                "start.conversation",
-                it.fullName
-            )
-            sendReplyMarkUp(
-                chatId,
-                "finish.work",
-                "finish.conversation",
-                "message.for.finish"
-            )
-            sendResponse(
-                it.chatId,
-                "sent.successfully.to.operator",
-                it.fullName
-            )
         } ?: run {
             sendResponse(
                 chatId,
                 "not.user.in.queue",
-                ReplyKeyboardRemove(true)
             )
-        }
-    }
-
-    fun sendInlineMarkup(
-        chatId: Long,
-        firstMessageUz: String,
-        secondMessageUz: String,
-        firstMessageEn: String,
-        secondMessageEn: String,
-        messageResponseUz: String,
-        messageResponseEn: String
-    ) {
-
-        when (getUserLanguage(chatId)) {
-            Language.UZ -> execute(
-                botHandlerForReplyMarkUp.sendInlineMarkUp(
-                    chatId,
-                    firstMessageUz,
-                    secondMessageUz,
-                    messageResponseUz
-                )
-            )
-
-            Language.EN -> execute(
-                botHandlerForReplyMarkUp.sendInlineMarkUp(chatId, firstMessageEn, secondMessageEn, messageResponseEn)
-            )
-
-            else -> ""
+            sendReplyMarkUp(chatId, "finish.work", "message.for.finish.work")
         }
     }
 
@@ -318,7 +336,7 @@ class BotHandler(
         message: String,
         response: String,
     ) {
-        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val userLanguage = userService.getUserLanguage(chatId)?.get(0)?.name?.lowercase() ?: "en"
         val locale = Locale(userLanguage)
 
         val message1 = messageSource.getMessage(message, null, locale)
@@ -333,7 +351,7 @@ class BotHandler(
         second: String,
         response: String,
     ) {
-        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val userLanguage = userService.getUserLanguage(chatId)?.get(0)?.name?.lowercase() ?: "en"
         val locale = Locale(userLanguage)
 
 
@@ -350,7 +368,7 @@ class BotHandler(
 
     fun sendResponse(chatId: Long, code: String, vararg args: Any?) {
 
-        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val userLanguage = userService.getUserLanguage(chatId)?.get(0)?.name?.lowercase() ?: "en"
         val locale = Locale(userLanguage)
 
         val response = if (args.isNotEmpty()) {
@@ -358,12 +376,12 @@ class BotHandler(
         } else {
             messageSource.getMessage(code, null, locale)
         }
-        execute(botHandlerForMessages.sendMessage(chatId, response))
+        execute(botHandlerForMessages.sendText(chatId, response))
     }
 
 
     fun getMessageFromResourceBundle(chatId: Long, code: String): String {
-        val userLanguage = getUserLanguage(chatId)?.name?.lowercase() ?: "en"
+        val userLanguage = userService.getUserLanguage(chatId)?.get(0)?.name?.lowercase() ?: "en"
         val locale = Locale(userLanguage)
 
         return messageSource.getMessage(code, null, locale)
@@ -377,24 +395,21 @@ class BotHandler(
     }
 
 
-    fun sendWritedMessage(chatId: Long, message: String, messageId: Int) {
-        operatorService.findAvailableOperator(getUserLanguage(chatId)!!)?.let {
-            execute(botHandlerForMessages.sendMessage(it.chatId, message))
+    fun sendWritedMessage(chatId: Long, message: Message, messageId: Int) {
+        operatorService.findAvailableOperator(userService.getUserLanguage(chatId)!![0])?.let {
+            botHandlerForMessages.sendMessage(it.chatId, message)
             operatorService.setOperatorStep(it.chatId, Status.OPERATOR_BUSY)
             userService.setUserStep(chatId, Status.USER_CHATTING)
             userService.addConversation(chatId, it)
-            operatorService.changeStatus(it.chatId, Status.OPERATOR_BUSY)
             sendResponse(
                 chatId,
                 "sent.successfully.to.operator",
                 it.fullName
-
             )
             sendResponse(
                 it.chatId,
                 "start.conversation",
                 userService.findUser(chatId)!!.fullName
-
             )
             sendReplyMarkUp(
                 it.chatId,
@@ -404,9 +419,7 @@ class BotHandler(
             )
 
         } ?: run {
-            if (userService.getUserStep(chatId) != Status.USER_QUEUE) {
-                userService.addQueue(chatId)
-            }
+            userService.addQueue(chatId)
             sendResponse(
                 chatId,
                 "busy.operator"
@@ -418,36 +431,51 @@ class BotHandler(
                 "back.message"
             )
         }
-
-        addMessage(chatId, message, messageId)
+        addMessageForUser(chatId, message, messageId)
     }
 
-    fun addMessage(chatId: Long, message: String, messageId: Int) {
-        userService.addMessage(chatId, message, messageId)
-    }
-
-    fun addMessage(chatId: Long, message: String, userMessage: String, userChatId: Long, operatorMessageId: Int) {
-        operatorService.addMessage(chatId, message, userMessage, userChatId, operatorMessageId)
-    }
-
-    fun findConversation(chatId: Long, message: String, messageId: Int) {
-        userService.findConversationByUser(chatId)?.let {
-            execute(botHandlerForMessages.sendMessage(it.operator.chatId, message))
-            sendResponse(
-                chatId,
-                "sent.message.to.operator",
-                ReplyKeyboardRemove(true)
-            )
-            addMessage(chatId, message, messageId)
+    fun addMessageForUser(chatId: Long, message: Message, messageId: Int) {
+        botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
+            botHandlerForMessages.getContent(message)?.let {
+                userService.addMessage(chatId, it, item, message.caption, messageId)
+            }
         }
     }
 
-    fun sendReplyMessage(chatId: Long, operatorMessage: String, messageId: Int) {
-        val sendMessage = SendMessage()
-        sendMessage.chatId = chatId.toString()
-        sendMessage.replyToMessageId = messageId
-        sendMessage.text = operatorMessage
-        execute(sendMessage)
+    fun addMessageForOperator(chatId: Long, message: Message, messageId: Int, userChatId: Long) {
+        botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
+            botHandlerForMessages.getContent(message)?.let {
+                operatorService.addMessage(chatId, it, item, message.caption, messageId)
+            }
+        }
+        userService.addConversationToMessage(userChatId)
+    }
+
+    fun addReplyMessageForOperator(
+        chatId: Long,
+        message: Message,
+        messageId: Int,
+        userChatId: Long,
+        userContent: String
+    ) {
+        botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
+            botHandlerForMessages.getContent(message)?.let {
+                operatorService.addMessage(chatId, it, item, message.caption, messageId)
+            }
+        }
+        userService.addConversationToMessage(userChatId, userContent)
+    }
+
+
+    fun findConversation(chatId: Long, message: Message, messageId: Int) {
+        userService.findConversationByUser(chatId)?.let {
+            botHandlerForMessages.sendMessage(it.operator.chatId, message)
+            addMessageForUser(chatId, message, messageId)
+        }
+    }
+
+    fun sendReplyMessage(chatId: Long, operatorMessage: Message, messageId: Int) {
+        botHandlerForMessages.sendRepLyMessage(chatId, operatorMessage, messageId)
     }
 
     fun finishConversation(chatId: Long) {
@@ -475,29 +503,38 @@ class BotHandler(
 
     fun addRating(chatId: Long?) {
         if (chatId != null) {
-            userService.deleteMessage(chatId)
-            when (getUserLanguage(chatId)) {
-                Language.EN -> execute(
-                    botHandlerForReplyMarkUp.sendInlineMarkUp(
-                        listOf("1", "2", "3", "4", "5"),
-                        chatId,
-                        getMessageFromResourceBundle(chatId, "rate.conversation")
+            try {
+                userService.deleteMessage(chatId)
+                when (userService.getUserLanguage(chatId)?.get(0)) {
+                    Language.EN -> execute(
+                        botHandlerForReplyMarkUp.sendInlineMarkUp(
+                            listOf("1", "2", "3", "4", "5"),
+                            chatId,
+                            getMessageFromResourceBundle(chatId, "rate.conversation")
 
+                        )
                     )
-                )
 
-                Language.UZ -> execute(
-                    botHandlerForReplyMarkUp.sendInlineMarkUp(
-                        listOf("1", "2", "3", "4", "5"),
-                        chatId,
-                        getMessageFromResourceBundle(chatId, "rate.conversation")
+                    Language.UZ -> execute(
+                        botHandlerForReplyMarkUp.sendInlineMarkUp(
+                            listOf("1", "2", "3", "4", "5"),
+                            chatId,
+                            getMessageFromResourceBundle(chatId, "rate.conversation")
+                        )
                     )
-                )
 
-                else -> ""
+                    else -> ""
+                }
+                userService.setUserStep(chatId, Status.USER_RATING)
+            } catch (tae: TelegramApiException) {
+                tae.message?.let {
+                    if (it.contains("Forbidden: bot was blocked by the user")) {
+                        userService.setUserStep(chatId, Status.USER_BLOCKED)
+                    }
+                }
             }
-            userService.setUserStep(chatId, Status.USER_RATING)
         }
+
     }
 
     fun addRatingScore(score: Int, chatId: Long) {
@@ -555,14 +592,140 @@ class BotHandler(
 }
 
 @Controller
-class BotHandlerForMessages {
+class BotHandlerForMessages(
+    private val botHandler: BotHandler
+) {
 
-    fun sendMessage(chatId: Long, message: String): SendMessage {
-        val sendMessage = SendMessage()
-        sendMessage.chatId = chatId.toString()
-        sendMessage.text = message
-        return sendMessage
+    fun sendMessage(chatId: Long, message: Message) {
+        if (message.hasPhoto()) {
+            botHandler.execute(sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption))
+        } else if (message.hasVideo()) {
+            botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
+        } else if (message.hasText()) {
+            botHandler.execute(sendText(chatId, message.text))
+        } else if (message.hasAnimation()) {
+            botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption))
+        } else if (message.hasAudio()) {
+            botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
+        } else if (message.hasVideoNote()) {
+            botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
+        } else if (message.hasDocument()) {
+            botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
+        } else if (message.hasSticker()) {
+            botHandler.execute(sendSticker(chatId, message.sticker.fileId))
+        } else if (message.hasVoice()) {
+            botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+        }
+    }
 
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
+        if (messageType == "PHOTO") {
+            botHandler.execute(sendPhoto(chatId, messageContent, caption))
+        } else if (messageType == "VIDEO") {
+            botHandler.execute(sendVideo(chatId, messageContent, caption))
+        } else if (messageType == "TEXT") {
+            botHandler.execute(sendText(chatId, messageContent))
+        } else if (messageType == "ANIMATION") {
+            botHandler.execute(sendAnimation(chatId, messageContent, caption))
+        } else if (messageType == "AUDIO") {
+            botHandler.execute(sendAudio(chatId, messageContent, caption))
+        } else if (messageType == "VIDEONOTE") {
+            botHandler.execute(sendVideoNote(chatId, messageContent))
+        } else if (messageType == "DOCUMENT") {
+            botHandler.execute(sendDocument(chatId, messageContent, caption))
+        } else if (messageType == "STICKER") {
+            botHandler.execute(sendSticker(chatId, messageContent))
+        } else if (messageType == "VOICE") {
+            botHandler.execute(sendVoice(chatId, messageContent, caption))
+        }
+    }
+
+    fun sendRepLyMessage(chatId: Long, message: Message, messageId: Int) {
+        if (message.hasPhoto()) {
+            val sendPhoto = sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption)
+            sendPhoto.replyToMessageId = messageId
+            botHandler.execute(sendPhoto)
+        } else if (message.hasVideo()) {
+            val sendVideo = sendVideo(chatId, message.video.fileId, message.caption)
+            sendVideo.replyToMessageId = messageId
+            botHandler.execute(sendVideo)
+        } else if (message.hasText()) {
+            val sendText = sendText(chatId, message.text)
+            sendText.replyToMessageId = messageId
+            botHandler.execute(sendText)
+        } else if (message.hasAnimation()) {
+            val sendAnimation = sendAnimation(chatId, message.animation.fileId, message.caption)
+            sendAnimation.replyToMessageId = messageId
+            botHandler.execute(sendAnimation)
+        } else if (message.hasAudio()) {
+            val sendAudio = sendAudio(chatId, message.audio.fileId, message.caption)
+            sendAudio.replyToMessageId = messageId
+            botHandler.execute(sendAudio)
+        } else if (message.hasVideoNote()) {
+            val sendVideoNote = sendVideoNote(chatId, message.videoNote.fileId)
+            sendVideoNote.replyToMessageId = messageId
+            botHandler.execute(sendVideoNote)
+        } else if (message.hasDocument()) {
+            val sendDocument = sendDocument(chatId, message.document.fileId, message.caption)
+            sendDocument.replyToMessageId = messageId
+            botHandler.execute(sendDocument)
+        } else if (message.hasSticker()) {
+            val sendSticker = sendSticker(chatId, message.sticker.fileId)
+            sendSticker.replyToMessageId = messageId
+            botHandler.execute(sendSticker)
+        } else if (message.hasVoice()) {
+            val sendVoice = sendVoice(chatId, message.voice.fileId, message.caption)
+            sendVoice.replyToMessageId = messageId
+            botHandler.execute(sendVoice)
+        }
+    }
+
+    fun findTypeOfMessage(message: Message): String? {
+        if (message.hasPhoto()) {
+            return "PHOTO"
+        } else if (message.hasVideo()) {
+            return "VIDEO"
+        } else if (message.hasText()) {
+            return "TEXT"
+        } else if (message.hasAnimation()) {
+            return "ANIMATION"
+        } else if (message.hasAudio()) {
+            return "AUDIO"
+        } else if (message.hasVideoNote()) {
+            return "VIDEONOTE"
+        } else if (message.hasDocument()) {
+            return "DOCUMENT"
+        } else if (message.hasSticker()) {
+            return "STICKER"
+        } else if (message.hasVoice()) {
+            return "VOICE"
+        } else {
+            return null
+        }
+    }
+
+    fun getContent(message: Message): String? {
+        if (message.hasPhoto()) {
+            return message.photo[message.photo.size - 1].fileId
+        } else if (message.hasVideo()) {
+            return message.video.fileId
+        } else if (message.hasText()) {
+            return message.text
+        } else if (message.hasAnimation()) {
+            return message.animation.fileId
+        } else if (message.hasAudio()) {
+            return message.audio.fileId
+        } else if (message.hasVideoNote()) {
+            return message.videoNote.fileId
+        } else if (message.hasDocument()) {
+            return message.document.fileId
+        } else if (message.hasSticker()) {
+            return message.sticker.fileId
+        } else if (message.hasVoice()) {
+            return message.voice.fileId
+        } else {
+            return null
+        }
     }
 
     fun sendMessage(chatId: Long, message: String, replyKeyboardRemove: ReplyKeyboardRemove): SendMessage {
@@ -571,7 +734,76 @@ class BotHandlerForMessages {
         sendMessage.text = message
         sendMessage.replyMarkup = replyKeyboardRemove
         return sendMessage
+    }
 
+    fun sendText(chatId: Long, message: String): SendMessage {
+        return SendMessage().apply {
+            this.text = message
+            this.chatId = chatId.toString()
+        }
+    }
+
+    fun sendPhoto(chatId: Long, fileId: String, caption: String?): SendPhoto {
+        return SendPhoto().apply {
+            this.chatId = chatId.toString()
+            this.photo = InputFile(fileId)
+            this.caption = caption
+        }
+    }
+
+    fun sendAudio(chatId: Long, fileId: String, caption: String?): SendAudio {
+        return SendAudio().apply {
+            this.chatId = chatId.toString()
+            this.audio = InputFile(fileId)
+            this.caption = caption
+        }
+    }
+
+    fun sendVideo(chatId: Long, fileId: String, caption: String?): SendVideo {
+        return SendVideo().apply {
+            this.chatId = chatId.toString()
+            this.video = InputFile(fileId)
+            this.caption = caption
+        }
+    }
+
+    fun sendAnimation(chatId: Long, fileId: String, caption: String?): SendAnimation {
+        return SendAnimation().apply {
+            this.chatId = chatId.toString()
+            this.animation = InputFile(fileId)
+            this.caption = caption
+        }
+    }
+
+    fun sendVoice(chatId: Long, fileId: String, caption: String?): SendVoice {
+        return SendVoice().apply {
+            this.chatId = chatId.toString()
+            this.voice = InputFile(fileId)
+            this.caption = caption
+        }
+    }
+
+    fun sendVideoNote(chatId: Long, fileId: String): SendVideoNote {
+        return SendVideoNote().apply {
+            this.chatId = chatId.toString()
+            this.videoNote = InputFile(fileId)
+
+        }
+    }
+
+    fun sendSticker(chatId: Long, fileId: String): SendSticker {
+        return SendSticker().apply {
+            this.chatId = chatId.toString()
+            this.sticker = InputFile(fileId)
+        }
+    }
+
+    fun sendDocument(chatId: Long, fileId: String, caption: String?): SendDocument {
+        return SendDocument().apply {
+            this.chatId = chatId.toString()
+            this.document = InputFile(fileId)
+            this.caption = caption
+        }
     }
 }
 
@@ -714,7 +946,6 @@ class AdminPanelController(
                 it,
                 "session.expired"
             )
-            removeUserLanguage(it)
         }
     }
 }
