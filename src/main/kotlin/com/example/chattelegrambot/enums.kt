@@ -1,4 +1,3 @@
-
 package com.example.chattelegrambot
 
 enum class ErrorCodes(val code: Int) {
@@ -22,6 +21,7 @@ enum class Status {
     USER_CHATTING,
     USER_QUEUE,
     USER_RATING,
+    USER_BLOCKED,
     OPERATOR_START_WORK,
     OPERATOR_INACTIVE,
     OPERATOR_ACTIVE,

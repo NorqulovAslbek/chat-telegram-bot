@@ -217,7 +217,7 @@ interface MessageRepository : BaseRepository<Message> {
         """
         select m from messages m
         where m.senderId = ?1 and m.conversation is null and m.deleted = false
-        order by m.createdDate
+        order by m.createdDate desc
         limit 1
     """
     )

@@ -111,7 +111,7 @@ class BotHandler(
 
                     Status.USER_QUEUE -> {
                         if (text != null) {
-                            if (text.equals("Orqaga\uD83D\uDD19") || text.equals("Back\uD83D\uDD19")) {
+                            if (text.equals("Orqaga") || text.equals("Back")) {
                                 userService.deleteQueue(chatId)
                                 userService.deleteMessage(chatId)
                                 sendResponse(
@@ -155,24 +155,32 @@ class BotHandler(
                             finishConversation(chatId)
                         } else {
                             val userChatId = operatorService.findConversationByOperator(chatId)?.users?.chatId
-                            if (update.message.isReply) {
-                                val userMessageContent =
-                                    botHandlerForMessages.getContent(update.message.replyToMessage)
-                                val userMessage =
-                                    userMessageContent?.let { userService.findMessageByUser(userChatId!!, it) }
-                                if (userMessage != null) {
-                                    sendReplyMessage(userChatId!!, message, userMessage.messageId)
-                                    addReplyMessageForOperator(
-                                        chatId,
-                                        message,
-                                        mId,
-                                        userChatId,
-                                        userMessageContent
-                                    )
+                            try {
+                                if (update.message.isReply) {
+                                    val userMessageContent =
+                                        botHandlerForMessages.getContent(update.message.replyToMessage)
+                                    val userMessage =
+                                        userMessageContent?.let { userService.findMessageByUser(userChatId!!, it) }
+                                    if (userMessage != null) {
+                                        sendReplyMessage(userChatId!!, message, userMessage.messageId)
+                                        addReplyMessageForOperator(
+                                            chatId,
+                                            message,
+                                            mId,
+                                            userChatId,
+                                            userMessageContent
+                                        )
+                                    }
+                                } else {
+                                    botHandlerForMessages.sendMessage(userChatId!!, message)
+                                    addMessageForOperator(chatId, message, mId, userChatId)
                                 }
-                            } else {
-                                botHandlerForMessages.sendMessage(userChatId!!, message)
-                                addMessageForOperator(chatId, message, mId, userChatId)
+                            } catch (tae: TelegramApiException) {
+                                tae.message?.let {
+                                    if (it.contains("Forbidden: bot was blocked by the user")) {
+                                        sendResponse(chatId, "user.blocked")
+                                    }
+                                }
                             }
                         }
                     }
@@ -277,31 +285,44 @@ class BotHandler(
 
     fun startWork(chatId: Long) {
         operatorService.startWork(chatId)?.let { it ->
-            operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
-            userService.setUserStep(it.chatId, Status.USER_CHATTING)
-            userService.findMessagesByUser(it.chatId)?.let {
-                it.forEach { message ->
-                    botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+            try {
+                sendResponse(
+                    it.chatId,
+                    "sent.successfully.to.operator",
+                    operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
+                )
+                userService.findMessagesByUser(it.chatId)?.let {
+                    it.forEach { message ->
+                        botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+                    }
+                }
+                operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
+                userService.setUserStep(it.chatId, Status.USER_CHATTING)
+                operatorService.addConversation(chatId, it)
+                userService.deleteQueue(it.chatId)
+                sendResponse(
+                    chatId,
+                    "start.conversation",
+                    it.fullName
+                )
+                sendReplyMarkUp(
+                    chatId,
+                    "finish.work",
+                    "finish.conversation",
+                    "message.for.finish"
+                )
+
+            } catch (tae: TelegramApiException) {
+                tae.message?.let { item ->
+                    if (item.contains("Forbidden: bot was blocked by the user")) {
+                        userService.setUserStep(it.chatId, Status.USER_BLOCKED)
+                        userService.deleteQueue(it.chatId)
+                        userService.deleteMessage(it.chatId)
+                        sendResponse(chatId, "user.blocked.queue")
+                        startWork(chatId)
+                    }
                 }
             }
-            operatorService.addConversation(chatId, it)
-            userService.deleteQueue(it.chatId)
-            sendResponse(
-                chatId,
-                "start.conversation",
-                it.fullName
-            )
-            sendReplyMarkUp(
-                chatId,
-                "finish.work",
-                "finish.conversation",
-                "message.for.finish"
-            )
-            sendResponse(
-                it.chatId,
-                "sent.successfully.to.operator",
-                operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
-            )
         } ?: run {
             sendResponse(
                 chatId,
@@ -483,29 +504,38 @@ class BotHandler(
 
     fun addRating(chatId: Long?) {
         if (chatId != null) {
-            userService.deleteMessage(chatId)
-            when (userService.getUserLanguage(chatId)?.get(0)) {
-                Language.EN -> execute(
-                    botHandlerForReplyMarkUp.sendInlineMarkUp(
-                        listOf("1", "2", "3", "4", "5"),
-                        chatId,
-                        getMessageFromResourceBundle(chatId, "rate.conversation")
+            try {
+                userService.deleteMessage(chatId)
+                when (userService.getUserLanguage(chatId)?.get(0)) {
+                    Language.EN -> execute(
+                        botHandlerForReplyMarkUp.sendInlineMarkUp(
+                            listOf("1", "2", "3", "4", "5"),
+                            chatId,
+                            getMessageFromResourceBundle(chatId, "rate.conversation")
 
+                        )
                     )
-                )
 
-                Language.UZ -> execute(
-                    botHandlerForReplyMarkUp.sendInlineMarkUp(
-                        listOf("1", "2", "3", "4", "5"),
-                        chatId,
-                        getMessageFromResourceBundle(chatId, "rate.conversation")
+                    Language.UZ -> execute(
+                        botHandlerForReplyMarkUp.sendInlineMarkUp(
+                            listOf("1", "2", "3", "4", "5"),
+                            chatId,
+                            getMessageFromResourceBundle(chatId, "rate.conversation")
+                        )
                     )
-                )
 
-                else -> ""
+                    else -> ""
+                }
+                userService.setUserStep(chatId, Status.USER_RATING)
+            } catch (tae: TelegramApiException) {
+                tae.message?.let {
+                    if (it.contains("Forbidden: bot was blocked by the user")) {
+                        userService.setUserStep(chatId, Status.USER_BLOCKED)
+                    }
+                }
             }
-            userService.setUserStep(chatId, Status.USER_RATING)
         }
+
     }
 
     fun addRatingScore(score: Int, chatId: Long) {

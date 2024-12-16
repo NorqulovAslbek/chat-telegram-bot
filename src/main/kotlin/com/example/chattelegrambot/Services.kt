@@ -253,25 +253,6 @@ class OperatorServiceImpl(
     }
 
 
-//    override fun finishWork(chatId: Long) {
-//        operatorRepository.findOperatorByChatId(chatId)?.let {
-//            it.status = Status.OPERATOR_INACTIVE
-//            operatorRepository.save(it)
-//            val workSession = workSessionRepository.getTodayWorkSession(chatId)
-//            val startDate = workSession.createdDate
-//            val endDate = Date()
-//            var workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
-//            var workMinute = (endDate.time - startDate.time) / (1000 * 60)
-//
-//            workSession.endDate = endDate
-//            workSession.workHour = workHour.toInt()
-//            workSession.workMinute = workMinute.toInt()
-//            workSession.salary =
-//                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60")) * HOURLY_RATE)
-//            workSessionRepository.save(workSession)
-//        }
-//    }
-
     override fun finishWork(chatId: Long) {
         operatorRepository.findOperatorByChatId(chatId)?.let { operator ->
             // Operatorni faolsiz holatga o'tkazish
@@ -374,7 +355,7 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalSalary(): List<OperatorSalaryDto> {
         return workSessionRepository.findTotalSalaryRaw().map { row ->
             val operatorName = row[0] as String
-            val totalSalary = (row[1] as? Double) ?: 0.0
+            val totalSalary = (row[1] as BigDecimal?) ?: BigDecimal.ZERO
             OperatorSalaryDto(operatorName, totalSalary)
         }
     }
