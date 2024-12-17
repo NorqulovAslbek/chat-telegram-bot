@@ -86,10 +86,10 @@ data class Message(
     @Column(nullable = false)
     val senderType: SenderType,
     @Column(nullable = false)
-    val content: String,
+    var content: String,
     @Column(nullable = false)
     val type: String,
-    val caption: String? = null,
+    var caption: String? = null,
     @Column(nullable = false)
     val messageId: Int
 ) : BaseEntity()
@@ -115,4 +115,10 @@ data class WorkSession(
     var workMinute: Int?,
     var salary: BigDecimal?,
     var endDate: Date?
+) : BaseEntity()
+
+@Entity
+class BotMessage(
+    val messageId: Int,
+    var telegramMessageId: Int
 ) : BaseEntity()

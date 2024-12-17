@@ -168,6 +168,8 @@ interface QueueRepository : BaseRepository<Queue> {
     fun deleteUserFromQueue(chatId: Long, language: Language)
 
     fun findByDeletedFalseOrderByCreatedDateAsc(): List<Queue>
+
+    fun existsByUsers_ChatIdAndDeletedFalse(chatId: Long): Boolean
 }
 
 @Repository
@@ -232,6 +234,8 @@ interface MessageRepository : BaseRepository<Message> {
     )
     fun deleteMessagesByUser(chatId: Long)
 
+    fun findByMessageIdAndDeletedFalse(messageId: Long): Message
+
 }
 
 @Repository
@@ -263,3 +267,9 @@ interface ConversationRepository : BaseRepository<Conversation> {
     fun findOperatorConversationCountsRaw(): List<Array<Any>>
 
 }
+
+@Repository
+interface BotMessageRepository : BaseRepository<BotMessage>{
+    fun findByMessageId(messageId: Long): BotMessage
+}
+

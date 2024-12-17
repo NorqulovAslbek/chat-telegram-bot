@@ -1,7 +1,7 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/chat_telegram_bot
-    password: 1234
+    url: jdbc:postgresql://localhost:5432/tgbot
+    password: 123
     username: postgres
   jpa:
     hibernate:
