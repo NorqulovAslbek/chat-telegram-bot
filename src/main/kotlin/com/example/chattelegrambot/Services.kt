@@ -355,7 +355,7 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalSalary(): List<OperatorSalaryDto> {
         return workSessionRepository.findTotalSalaryRaw().map { row ->
             val operatorName = row[0] as String
-            val totalSalary = (row[1] as BigDecimal?) ?: BigDecimal.ZERO
+            val totalSalary = (row[1] as Double?) ?: 0.0
             OperatorSalaryDto(operatorName, totalSalary)
         }
     }

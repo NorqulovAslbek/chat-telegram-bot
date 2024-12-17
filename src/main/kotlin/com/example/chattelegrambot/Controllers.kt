@@ -79,8 +79,19 @@ class BotHandler(
             val message = update.message
             val mId = update.message.messageId
             val text = update.message.text
-
-            if (text != null && text.equals("/start")) {
+            if (text!=null && text.equals("/changeLanguage")
+                && userService.getUserStep(chatId)==Status.USER_WRITE_MESSAGE){
+                deleteCallBack(chatId,mId)
+                execute(
+                    botHandlerForReplyMarkUp.sendInlineMarkUp(
+                        chatId,
+                        Language.UZ.toString(),
+                        Language.EN.toString(),
+                        "Choose the language(Tilni tanlang):"
+                    )
+                )
+            }
+            else if (text != null && text.equals("/start")) {
                 find(chatId)
             } else {
                 when (userService.getUserStep(chatId)) {
