@@ -79,7 +79,7 @@ class BotHandler(
             val message = update.message
             val mId = update.message.messageId
             val text = update.message.text
-            if (text!=null && text.equals("/changeLanguage")
+            if (text!=null && text.equals("/changelanguage")
                 && userService.getUserStep(chatId)==Status.USER_WRITE_MESSAGE){
                 deleteCallBack(chatId,mId)
                 execute(
