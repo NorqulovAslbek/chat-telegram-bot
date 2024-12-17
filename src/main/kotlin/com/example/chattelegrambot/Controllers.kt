@@ -79,9 +79,10 @@ class BotHandler(
             val message = update.message
             val mId = update.message.messageId
             val text = update.message.text
-            if (text!=null && text.equals("/changelanguage")
-                && userService.getUserStep(chatId)==Status.USER_WRITE_MESSAGE){
-                deleteCallBack(chatId,mId)
+            if (text != null && text.equals("/changeLanguage")
+                && userService.getUserStep(chatId) == Status.USER_WRITE_MESSAGE
+            ) {
+                deleteCallBack(chatId, mId)
                 execute(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         chatId,
@@ -720,54 +721,41 @@ class BotHandlerForMessages(
             val sendVoice = sendVoice(chatId, message.voice.fileId, message.caption)
             sendVoice.replyToMessageId = messageId
             botHandler.execute(sendVoice)
+        } else if (message.hasLocation()) {
+            val sendLocation = sendLocation(chatId, message.location.latitude, message.location.longitude)
+            sendLocation.replyToMessageId = messageId
+            botHandler.execute(sendLocation)
         }
     }
 
     fun findTypeOfMessage(message: Message): String? {
-        if (message.hasPhoto()) {
-            return "PHOTO"
-        } else if (message.hasVideo()) {
-            return "VIDEO"
-        } else if (message.hasText()) {
-            return "TEXT"
-        } else if (message.hasAnimation()) {
-            return "ANIMATION"
-        } else if (message.hasAudio()) {
-            return "AUDIO"
-        } else if (message.hasVideoNote()) {
-            return "VIDEONOTE"
-        } else if (message.hasDocument()) {
-            return "DOCUMENT"
-        } else if (message.hasSticker()) {
-            return "STICKER"
-        } else if (message.hasVoice()) {
-            return "VOICE"
-        } else {
-            return null
+        return when {
+            message.hasPhoto() -> "PHOTO"
+            message.hasVideo() -> "VIDEO"
+            message.hasText() -> "TEXT"
+            message.hasAnimation() -> "ANIMATION"
+            message.hasAudio() -> "AUDIO"
+            message.hasVideoNote() -> "VIDEONOTE"
+            message.hasDocument() -> "DOCUMENT"
+            message.hasSticker() -> "STICKER"
+            message.hasVoice() -> "VOICE"
+            message.hasLocation() -> "LOCATION"
+            else -> null
         }
     }
 
     fun getContent(message: Message): String? {
-        if (message.hasPhoto()) {
-            return message.photo[message.photo.size - 1].fileId
-        } else if (message.hasVideo()) {
-            return message.video.fileId
-        } else if (message.hasText()) {
-            return message.text
-        } else if (message.hasAnimation()) {
-            return message.animation.fileId
-        } else if (message.hasAudio()) {
-            return message.audio.fileId
-        } else if (message.hasVideoNote()) {
-            return message.videoNote.fileId
-        } else if (message.hasDocument()) {
-            return message.document.fileId
-        } else if (message.hasSticker()) {
-            return message.sticker.fileId
-        } else if (message.hasVoice()) {
-            return message.voice.fileId
-        } else {
-            return null
+        return when {
+            message.hasPhoto() -> message.photo.last().fileId
+            message.hasVideo() -> message.video.fileId
+            message.hasText() -> message.text
+            message.hasAnimation() -> message.animation.fileId
+            message.hasAudio() -> message.audio.fileId
+            message.hasVideoNote() -> message.videoNote.fileId
+            message.hasDocument() -> message.document.fileId
+            message.hasSticker() -> message.sticker.fileId
+            message.hasVoice() -> message.voice.fileId
+            else -> null
         }
     }
 
@@ -846,6 +834,14 @@ class BotHandlerForMessages(
             this.chatId = chatId.toString()
             this.document = InputFile(fileId)
             this.caption = caption
+        }
+    }
+
+    fun sendLocation(chatId: Long, latitude: Double, longitude: Double): SendLocation {
+        return SendLocation().apply {
+            this.chatId = chatId.toString()
+            this.latitude = latitude
+            this.longitude = longitude
         }
     }
 }
