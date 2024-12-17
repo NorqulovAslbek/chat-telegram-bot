@@ -2,6 +2,6 @@ POST localhost:8081/admin/create
 Content-Type: application/json
 
 {
-  "id": 1,
+  "id": 3,
   "langType": ["UZ","EN"]
 }

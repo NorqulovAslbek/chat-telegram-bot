@@ -91,8 +91,7 @@ class BotHandler(
                         "Choose the language(Tilni tanlang):"
                     )
                 )
-            }
-            else if (text != null && text.equals("/start")) {
+            } else if (text != null && text.equals("/start")) {
                 find(chatId)
             } else {
                 when (userService.getUserStep(chatId)) {
@@ -201,8 +200,9 @@ class BotHandler(
                 }
             }
 
-        }else if(update!=null&& update.hasCallbackQuery() &&
-            userService.getUserStep(update.callbackQuery.message.chatId)==Status.USER_WRITE_MESSAGE){
+        } else if (update != null && update.hasCallbackQuery() &&
+            userService.getUserStep(update.callbackQuery.message.chatId) == Status.USER_WRITE_MESSAGE
+        ) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
@@ -231,8 +231,7 @@ class BotHandler(
                 "5_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(5, chatId)
                 else -> ""
             }
-        }
-        else if (update != null && update.hasCallbackQuery()) {
+        } else if (update != null && update.hasCallbackQuery()) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
@@ -641,46 +640,37 @@ class BotHandlerForMessages(
 ) {
 
     fun sendMessage(chatId: Long, message: Message) {
-        if (message.hasPhoto()) {
-            botHandler.execute(sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption))
-        } else if (message.hasVideo()) {
-            botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
-        } else if (message.hasText()) {
-            botHandler.execute(sendText(chatId, message.text))
-        } else if (message.hasAnimation()) {
-            botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption))
-        } else if (message.hasAudio()) {
-            botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
-        } else if (message.hasVideoNote()) {
-            botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
-        } else if (message.hasDocument()) {
-            botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
-        } else if (message.hasSticker()) {
-            botHandler.execute(sendSticker(chatId, message.sticker.fileId))
-        } else if (message.hasVoice()) {
-            botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+        when {
+            message.hasPhoto() -> botHandler.execute(sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption))
+            message.hasVideo() -> botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
+            message.hasText() -> botHandler.execute(sendText(chatId, message.text))
+            message.hasAnimation() -> botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption))
+            message.hasAudio() -> botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
+            message.hasVideoNote() -> botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
+            message.hasDocument() -> botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
+            message.hasSticker() -> botHandler.execute(sendSticker(chatId, message.sticker.fileId))
+            message.hasVoice() -> botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+            message.hasLocation() -> botHandler.execute(sendLocation(chatId, message.location.latitude, message.location.longitude))
         }
     }
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
-        if (messageType == "PHOTO") {
-            botHandler.execute(sendPhoto(chatId, messageContent, caption))
-        } else if (messageType == "VIDEO") {
-            botHandler.execute(sendVideo(chatId, messageContent, caption))
-        } else if (messageType == "TEXT") {
-            botHandler.execute(sendText(chatId, messageContent))
-        } else if (messageType == "ANIMATION") {
-            botHandler.execute(sendAnimation(chatId, messageContent, caption))
-        } else if (messageType == "AUDIO") {
-            botHandler.execute(sendAudio(chatId, messageContent, caption))
-        } else if (messageType == "VIDEONOTE") {
-            botHandler.execute(sendVideoNote(chatId, messageContent))
-        } else if (messageType == "DOCUMENT") {
-            botHandler.execute(sendDocument(chatId, messageContent, caption))
-        } else if (messageType == "STICKER") {
-            botHandler.execute(sendSticker(chatId, messageContent))
-        } else if (messageType == "VOICE") {
-            botHandler.execute(sendVoice(chatId, messageContent, caption))
+
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String, latitude: Double? = null, longitude: Double? = null) {
+        when (messageType) {
+            "PHOTO" -> botHandler.execute(sendPhoto(chatId, messageContent, caption))
+            "VIDEO" -> botHandler.execute(sendVideo(chatId, messageContent, caption))
+            "TEXT" -> botHandler.execute(sendText(chatId, messageContent))
+            "ANIMATION" -> botHandler.execute(sendAnimation(chatId, messageContent, caption))
+            "AUDIO" -> botHandler.execute(sendAudio(chatId, messageContent, caption))
+            "VIDEONOTE" -> botHandler.execute(sendVideoNote(chatId, messageContent))
+            "DOCUMENT" -> botHandler.execute(sendDocument(chatId, messageContent, caption))
+            "STICKER" -> botHandler.execute(sendSticker(chatId, messageContent))
+            "VOICE" -> botHandler.execute(sendVoice(chatId, messageContent, caption))
+            "LOCATION" -> {
+                if (latitude != null && longitude != null) {
+                    botHandler.execute(sendLocation(chatId, latitude, longitude))
+                }
+            }
         }
     }
 
@@ -755,6 +745,7 @@ class BotHandlerForMessages(
             message.hasDocument() -> message.document.fileId
             message.hasSticker() -> message.sticker.fileId
             message.hasVoice() -> message.voice.fileId
+            message.hasLocation() -> "${message.location.latitude},${message.location.longitude}"
             else -> null
         }
     }
