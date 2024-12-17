@@ -13,3 +13,12 @@ Content-Type: application/json
 ###
 GET localhost:8081/api/operators/statistics/salary
 Content-Type: application/json
+
+###
+POST localhost:8081/admin/create
+Content-Type: application/json
+
+{
+  "id": 5,
+  "langType": ["UZ","EN"]
+}

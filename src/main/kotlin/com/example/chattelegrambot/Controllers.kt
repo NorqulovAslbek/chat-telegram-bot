@@ -30,11 +30,11 @@ class BotHandler(
     private val operatorService: OperatorService,
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
-        return "@chat_telegram_1_0_bot"
+        return "@javacssbot"
     }
 
     override fun getBotToken(): String {
-        return "7923535042:AAHgoQ0uf1h3zxHnidCSWBz7iszFtIbeKRA"
+        return "6517497852:AAF0Yl1ISompZm4SqdCEPAnQUAzBkdHhi6w"
     }
 
     override fun onUpdateReceived(update: Update?) {
@@ -79,9 +79,10 @@ class BotHandler(
             val message = update.message
             val mId = update.message.messageId
             val text = update.message.text
-            if (text!=null && text.equals("/changeLanguage")
-                && userService.getUserStep(chatId)==Status.USER_WRITE_MESSAGE){
-                deleteCallBack(chatId,mId)
+            if (text != null && text.equals("/changeLanguage")
+                && userService.getUserStep(chatId) == Status.USER_WRITE_MESSAGE
+            ) {
+                deleteCallBack(chatId, mId)
                 execute(
                     botHandlerForReplyMarkUp.sendInlineMarkUp(
                         chatId,
@@ -90,8 +91,7 @@ class BotHandler(
                         "Choose the language(Tilni tanlang):"
                     )
                 )
-            }
-            else if (text != null && text.equals("/start")) {
+            } else if (text != null && text.equals("/start")) {
                 find(chatId)
             } else {
                 when (userService.getUserStep(chatId)) {
@@ -200,8 +200,9 @@ class BotHandler(
                 }
             }
 
-        }else if(update!=null&& update.hasCallbackQuery() &&
-            userService.getUserStep(update.callbackQuery.message.chatId)==Status.USER_WRITE_MESSAGE){
+        } else if (update != null && update.hasCallbackQuery() &&
+            userService.getUserStep(update.callbackQuery.message.chatId) == Status.USER_WRITE_MESSAGE
+        ) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
@@ -230,8 +231,7 @@ class BotHandler(
                 "5_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(5, chatId)
                 else -> ""
             }
-        }
-        else if (update != null && update.hasCallbackQuery()) {
+        } else if (update != null && update.hasCallbackQuery()) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
@@ -658,28 +658,30 @@ class BotHandlerForMessages(
             botHandler.execute(sendSticker(chatId, message.sticker.fileId))
         } else if (message.hasVoice()) {
             botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+        } else if (message.hasLocation()) {
+            botHandler.execute(sendLocation(chatId, message.location.latitude, message.location.longitude))
         }
     }
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
-        if (messageType == "PHOTO") {
-            botHandler.execute(sendPhoto(chatId, messageContent, caption))
-        } else if (messageType == "VIDEO") {
-            botHandler.execute(sendVideo(chatId, messageContent, caption))
-        } else if (messageType == "TEXT") {
-            botHandler.execute(sendText(chatId, messageContent))
-        } else if (messageType == "ANIMATION") {
-            botHandler.execute(sendAnimation(chatId, messageContent, caption))
-        } else if (messageType == "AUDIO") {
-            botHandler.execute(sendAudio(chatId, messageContent, caption))
-        } else if (messageType == "VIDEONOTE") {
-            botHandler.execute(sendVideoNote(chatId, messageContent))
-        } else if (messageType == "DOCUMENT") {
-            botHandler.execute(sendDocument(chatId, messageContent, caption))
-        } else if (messageType == "STICKER") {
-            botHandler.execute(sendSticker(chatId, messageContent))
-        } else if (messageType == "VOICE") {
-            botHandler.execute(sendVoice(chatId, messageContent, caption))
+    fun sendMessage(
+        chatId: Long, messageType: String, caption: String?, messageContent: String, latitude: Double? = null,
+        longitude: Double? = null
+    ) {
+        when (messageType) {
+            "PHOTO" -> botHandler.execute(sendPhoto(chatId, messageContent, caption))
+            "VIDEO" -> botHandler.execute(sendVideo(chatId, messageContent, caption))
+            "TEXT" -> botHandler.execute(sendText(chatId, messageContent))
+            "ANIMATION" -> botHandler.execute(sendAnimation(chatId, messageContent, caption))
+            "AUDIO" -> botHandler.execute(sendAudio(chatId, messageContent, caption))
+            "VIDEONOTE" -> botHandler.execute(sendVideoNote(chatId, messageContent))
+            "DOCUMENT" -> botHandler.execute(sendDocument(chatId, messageContent, caption))
+            "STICKER" -> botHandler.execute(sendSticker(chatId, messageContent))
+            "VOICE" -> botHandler.execute(sendVoice(chatId, messageContent, caption))
+            "LOCATION" -> {
+                if (latitude != null && longitude != null) {
+                    botHandler.execute(sendLocation(chatId, latitude, longitude))
+                }
+            }
         }
     }
 
@@ -720,54 +722,41 @@ class BotHandlerForMessages(
             val sendVoice = sendVoice(chatId, message.voice.fileId, message.caption)
             sendVoice.replyToMessageId = messageId
             botHandler.execute(sendVoice)
+        } else if (message.hasLocation()) {
+            val sendLocation = sendLocation(chatId, message.location.latitude, message.location.longitude)
+            sendLocation.replyToMessageId = messageId
+            botHandler.execute(sendLocation)
         }
     }
 
     fun findTypeOfMessage(message: Message): String? {
-        if (message.hasPhoto()) {
-            return "PHOTO"
-        } else if (message.hasVideo()) {
-            return "VIDEO"
-        } else if (message.hasText()) {
-            return "TEXT"
-        } else if (message.hasAnimation()) {
-            return "ANIMATION"
-        } else if (message.hasAudio()) {
-            return "AUDIO"
-        } else if (message.hasVideoNote()) {
-            return "VIDEONOTE"
-        } else if (message.hasDocument()) {
-            return "DOCUMENT"
-        } else if (message.hasSticker()) {
-            return "STICKER"
-        } else if (message.hasVoice()) {
-            return "VOICE"
-        } else {
-            return null
+        return when {
+            message.hasPhoto() -> "PHOTO"
+            message.hasVideo() -> "VIDEO"
+            message.hasText() -> "TEXT"
+            message.hasAnimation() -> "ANIMATION"
+            message.hasAudio() -> "AUDIO"
+            message.hasVideoNote() -> "VIDEONOTE"
+            message.hasDocument() -> "DOCUMENT"
+            message.hasSticker() -> "STICKER"
+            message.hasVoice() -> "VOICE"
+            message.hasLocation() -> "LOCATION"
+            else -> null
         }
     }
 
     fun getContent(message: Message): String? {
-        if (message.hasPhoto()) {
-            return message.photo[message.photo.size - 1].fileId
-        } else if (message.hasVideo()) {
-            return message.video.fileId
-        } else if (message.hasText()) {
-            return message.text
-        } else if (message.hasAnimation()) {
-            return message.animation.fileId
-        } else if (message.hasAudio()) {
-            return message.audio.fileId
-        } else if (message.hasVideoNote()) {
-            return message.videoNote.fileId
-        } else if (message.hasDocument()) {
-            return message.document.fileId
-        } else if (message.hasSticker()) {
-            return message.sticker.fileId
-        } else if (message.hasVoice()) {
-            return message.voice.fileId
-        } else {
-            return null
+        return when {
+            message.hasPhoto() -> message.photo.last().fileId
+            message.hasVideo() -> message.video.fileId
+            message.hasText() -> message.text
+            message.hasAnimation() -> message.animation.fileId
+            message.hasAudio() -> message.audio.fileId
+            message.hasVideoNote() -> message.videoNote.fileId
+            message.hasDocument() -> message.document.fileId
+            message.hasSticker() -> message.sticker.fileId
+            message.hasVoice() -> message.voice.fileId
+            else -> null
         }
     }
 
@@ -846,6 +835,14 @@ class BotHandlerForMessages(
             this.chatId = chatId.toString()
             this.document = InputFile(fileId)
             this.caption = caption
+        }
+    }
+
+    fun sendLocation(chatId: Long, latitude: Double, longitude: Double): SendLocation {
+        return SendLocation().apply {
+            this.chatId = chatId.toString()
+            this.latitude = latitude
+            this.longitude = longitude
         }
     }
 }
