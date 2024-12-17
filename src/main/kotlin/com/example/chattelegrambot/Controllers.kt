@@ -200,7 +200,38 @@ class BotHandler(
                 }
             }
 
-        } else if (update != null && update.hasCallbackQuery()) {
+        }else if(update!=null&& update.hasCallbackQuery() &&
+            userService.getUserStep(update.callbackQuery.message.chatId)==Status.USER_WRITE_MESSAGE){
+            val chatId = update.callbackQuery.message.chatId
+            val data = update.callbackQuery.data
+            val userStep = userService.getUserStep(chatId)
+            //// delete calback query
+            deleteCallBack(chatId, update.callbackQuery.message.messageId)
+
+            when {
+                "${Language.EN}_call_back_data" == data && userStep == Status.USER_WRITE_MESSAGE -> {
+                    val registerUser = getRegistrationData(chatId)
+                    registerUser.langType = Language.EN
+                    setRegistrationData(chatId, registerUser)
+                    userService.addLanguage(chatId, Language.EN)
+                }
+
+                "${Language.UZ}_call_back_data" == data && userStep == Status.USER_WRITE_MESSAGE -> {
+                    val registerUser = getRegistrationData(chatId)
+                    registerUser.langType = Language.UZ
+                    setRegistrationData(chatId, registerUser)
+                    userService.addLanguage(chatId, Language.UZ)
+                }
+
+                "1_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(1, chatId)
+                "2_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(2, chatId)
+                "3_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(3, chatId)
+                "4_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(4, chatId)
+                "5_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(5, chatId)
+                else -> ""
+            }
+        }
+        else if (update != null && update.hasCallbackQuery()) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
