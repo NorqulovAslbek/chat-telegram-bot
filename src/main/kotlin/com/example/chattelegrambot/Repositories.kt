@@ -218,6 +218,17 @@ interface MessageRepository : BaseRepository<Message> {
     @Query(
         """
         select m from messages m
+        where m.senderId = ?1 and m.content = ?2 and  m.deleted = false
+        order by m.createdDate
+        limit 1
+    """
+    )
+    fun findMessageByOperator(chatId: Long, content: String): Message?
+
+
+    @Query(
+        """
+        select m from messages m
         where m.senderId = ?1 and m.conversation is null and m.deleted = false
         order by m.createdDate desc
         limit 1
