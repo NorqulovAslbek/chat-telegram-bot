@@ -115,3 +115,10 @@ data class WorkSession(
     var salary: Double?,
     var endDate: Date?
 ) : BaseEntity()
+
+
+@Entity
+class BotMessage(
+    val messageId: Int,
+    var telegramMessageId: Int
+) : BaseEntity()

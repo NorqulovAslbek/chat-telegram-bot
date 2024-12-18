@@ -7,9 +7,15 @@ import org.springframework.stereotype.Controller
 import org.springframework.web.bind.annotation.*
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
 import org.telegram.telegrambots.meta.api.methods.send.*
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageMedia
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText
 import org.telegram.telegrambots.meta.api.objects.InputFile
 import org.telegram.telegrambots.meta.api.objects.Message
 import org.telegram.telegrambots.meta.api.objects.Update
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaAudio
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaDocument
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto
+import org.telegram.telegrambots.meta.api.objects.media.InputMediaVideo
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRemove
@@ -27,6 +33,8 @@ class BotHandler(
     private val userService: UserService,
     private val messageSource: MessageSource,
     private val operatorService: OperatorService,
+    private val queueRepository: QueueRepository,
+    private val messageRepository: MessageRepository
 ) : TelegramLongPollingBot() {
     override fun getBotUsername(): String {
         return "@chat_telegram_1_0_bot"
@@ -277,6 +285,114 @@ class BotHandler(
                 else -> ""
             }
 
+
+        } else if (update != null && update.hasEditedMessage()) {
+            val editedMessage = update.editedMessage
+            val editChatId = editedMessage.chatId
+            val messageId = editedMessage.messageId.toLong()
+
+            var conversation = userService.findConversationByUser(editChatId)
+            var chatId = conversation?.operator?.chatId
+            if (conversation == null) {
+                conversation = operatorService.findConversationByOperator(editChatId)
+                chatId = conversation?.users?.chatId
+            }
+
+            if (queueRepository.existsByUsersChatIdAndDeletedFalse(editChatId)) {
+                if (editedMessage.hasText()) {
+                    val text = editedMessage.text
+                    operatorService.getMessageByMessageId(messageId).let {
+                        it.content = "$text (edited)"
+                        messageRepository.save(it)
+                    }
+                } else if (editedMessage.hasPhoto()) {
+                    operatorService.getMessageByMessageId(messageId).let {
+                        it.content = editedMessage.photo.last().fileId
+                        it.caption = editedMessage.caption ?: ""
+                        messageRepository.save(it)
+                    }
+                } else if (editedMessage.hasDocument()) {
+                    operatorService.getMessageByMessageId(messageId).let {
+                        it.content = editedMessage.document.fileId
+                        it.caption = editedMessage.caption ?: ""
+                        messageRepository.save(it)
+                    }
+                } else if (editedMessage.hasVideo()) {
+                    operatorService.getMessageByMessageId(messageId).let {
+                        it.content = editedMessage.video.fileId
+                        it.caption = editedMessage.caption ?: ""
+                        messageRepository.save(it)
+                    }
+                } else if (editedMessage.hasAudio()) {
+                    operatorService.getMessageByMessageId(messageId).let {
+                        it.content = editedMessage.audio.fileId
+                        it.caption = editedMessage.caption ?: ""
+                        messageRepository.save(it)
+                    }
+                }
+
+            } else if (editedMessage.hasText()) {
+                val editText = editedMessage.text
+                val editMessage = EditMessageText()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
+                editMessage.text = "$editText (edited)"
+                execute(editMessage)
+            } else if (editedMessage.hasPhoto()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
+                val newMedia = InputMediaPhoto()
+                newMedia.media = editedMessage.photo.last().fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            } else if (editedMessage.hasDocument()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                val newMedia = InputMediaDocument()
+                newMedia.media = editedMessage.document.fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            } else if (editedMessage.hasVideo()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                val newMedia = InputMediaVideo()
+                newMedia.media = editedMessage.video.fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            } else if (editedMessage.hasVoice()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                val newMedia = InputMediaDocument()
+                newMedia.media = editedMessage.voice.fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            } else if (editedMessage.hasAudio()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                val newMedia = InputMediaAudio()
+                newMedia.media = editedMessage.audio.fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            } else if (editedMessage.hasAnimation()) {
+                val editMessage = EditMessageMedia()
+                editMessage.chatId = chatId.toString()
+                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                val newMedia = InputMediaDocument()
+                newMedia.media = editedMessage.animation.fileId
+                newMedia.caption = editedMessage.caption ?: ""
+                editMessage.media = newMedia
+                execute(editMessage)
+            }
 
         }
     }
@@ -959,7 +1075,7 @@ class OperatorStatisticsController(
     }
 
 
-    @GetMapping("/work-hours") ///
+    @GetMapping("/work-hours")
     fun getTotalWorkHours(): List<OperatorWorkHoursDto> {
         return operatorStatisticsService.findTotalWorkHours()
     }
@@ -969,12 +1085,12 @@ class OperatorStatisticsController(
         return operatorStatisticsService.findTotalSalary()
     }
 
-    @GetMapping("/ratings")///
+    @GetMapping("/ratings")//ortacha
     fun getAverageRatings(): List<OperatorRatingDto> {
         return operatorStatisticsService.findAverageRatings()
     }
 
-    @GetMapping("/conversations") ///
+    @GetMapping("/conversations")
     fun getTotalConversations(): List<OperatorConversationDto> {
         return operatorStatisticsService.findOperatorConversationCounts()
     }

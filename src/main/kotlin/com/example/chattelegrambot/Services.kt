@@ -48,6 +48,8 @@ interface OperatorService {
     fun getOperatorStep(chatId: Long): Status?
     fun getOperatorLanguage(chatId: Long): List<Language>?
     fun setOperatorStep(chatId: Long, status: Status)
+    fun getBotMessageId(messageId: Long): BotMessage
+    fun getMessageByMessageId(messageId: Long): Message
 }
 
 @Service
@@ -190,7 +192,8 @@ class OperatorServiceImpl(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     @Lazy private val userService: UserService,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val botMessageRepository: BotMessageRepository
 ) : OperatorService {
     override fun addConversation(chatId: Long, user: Users) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
@@ -318,6 +321,14 @@ class OperatorServiceImpl(
         operator?.status = status
         operatorRepository.save(operator!!)
     }
+
+    override fun getBotMessageId(messageId: Long): BotMessage {
+        return botMessageRepository.findByMessageId(messageId)
+    }
+
+    override fun getMessageByMessageId(messageId: Long): Message {
+        return messageRepository.findByMessageIdAndDeletedFalse(messageId)
+    }
 }
 
 
@@ -380,3 +391,4 @@ class OperatorStatisticsServiceImpl(
     }
 
 }
+
