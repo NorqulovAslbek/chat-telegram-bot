@@ -137,6 +137,7 @@ class BotHandler(
                                     "not.answer.delete", ReplyKeyboardRemove(true)
                                 )
                                 find(chatId)
+                                userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
                             } else {
                                 addMessageForUser(chatId, update.message, update.message.messageId, null)
                             }
@@ -252,24 +253,15 @@ class BotHandler(
 
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_WRITE_MESSAGE -> {
-                    val registerUser = getRegistrationData(chatId)
-                    registerUser.langType = Language.EN
-                    setRegistrationData(chatId, registerUser)
                     userService.addLanguage(chatId, Language.EN)
+                    find(chatId)
                 }
 
                 "${Language.UZ}_call_back_data" == data && userStep == Status.USER_WRITE_MESSAGE -> {
-                    val registerUser = getRegistrationData(chatId)
-                    registerUser.langType = Language.UZ
-                    setRegistrationData(chatId, registerUser)
                     userService.addLanguage(chatId, Language.UZ)
+                    find(chatId)
                 }
 
-                "1_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(1, chatId)
-                "2_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(2, chatId)
-                "3_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(3, chatId)
-                "4_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(4, chatId)
-                "5_call_back_data" == data && userStep == Status.USER_RATING -> addRatingScore(5, chatId)
                 else -> ""
             }
         } else if (update != null && update.hasCallbackQuery()) {
@@ -281,9 +273,6 @@ class BotHandler(
             when {
                 "${Language.EN}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     userService.setUserStep(chatId, Status.USER_FULL_NAME)
-                    val registerUser = getRegistrationData(chatId)
-                    registerUser.langType = Language.EN
-                    setRegistrationData(chatId, registerUser)
                     userService.addLanguage(chatId, Language.EN)
                     val message = execute(
                         botHandlerForMessages.sendText(
@@ -296,9 +285,6 @@ class BotHandler(
 
                 "${Language.UZ}_call_back_data" == data && userStep == Status.USER_LANGUAGE -> {
                     userService.setUserStep(chatId, Status.USER_FULL_NAME)
-                    val registerUser = getRegistrationData(chatId)
-                    registerUser.langType = Language.UZ
-                    setRegistrationData(chatId, registerUser)
                     userService.addLanguage(chatId, Language.UZ)
 
 
@@ -484,7 +470,8 @@ class BotHandler(
                 sendResponse(
                     it.chatId,
                     "sent.successfully.to.operator",
-                    operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
+                    operatorService.findOperator(chatId)?.fullName,
+                    ReplyKeyboardRemove(true)
                 )
                 sendResponse(
                     chatId,
@@ -600,7 +587,8 @@ class BotHandler(
             sendResponse(
                 chatId,
                 "sent.successfully.to.operator",
-                it.fullName
+                it.fullName,
+                ReplyKeyboardRemove(true)
             )
             sendResponse(
                 it.chatId,

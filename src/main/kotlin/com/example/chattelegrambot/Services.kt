@@ -77,7 +77,6 @@ class UserServiceImpl(
 
     override fun addUser(registerUser: RegisterUser, chatId: Long) {
         val user = userRepository.findUsersByChatId(chatId)
-        user?.langType = registerUser.langType
         user?.fullName = registerUser.fullName
         user?.phone = registerUser.phoneNumber
         userRepository.save(user!!)
