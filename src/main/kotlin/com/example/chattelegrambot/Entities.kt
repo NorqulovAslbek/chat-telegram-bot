@@ -5,7 +5,6 @@ import org.hibernate.annotations.ColumnDefault
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.math.BigDecimal
 import java.util.*
 
 
@@ -115,15 +114,4 @@ data class WorkSession(
     var workMinute: Int?,
     var salary: Double?,
     var endDate: Date?
-) : BaseEntity()
-
-@Entity
-@Table(name = "user_location")
-class UserLocation(
-    @Column(name = "user_id", nullable = false)
-    val userId: Long,
-    @Column(name = "latitude", nullable = false)
-    val latitude: Double,
-    @Column(name = "longitude", nullable = false)
-    val longitude: Double,
 ) : BaseEntity()

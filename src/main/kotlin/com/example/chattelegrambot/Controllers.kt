@@ -17,7 +17,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException
-import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException
 import java.util.*
 
 
@@ -440,10 +439,6 @@ class BotHandler(
 
     fun sendWritedMessage(chatId: Long, message: Message, messageId: Int) {
         operatorService.findAvailableOperator(userService.getUserLanguage(chatId)!![0])?.let {
-            botHandlerForMessages.sendMessage(it.chatId, message)
-            operatorService.setOperatorStep(it.chatId, Status.OPERATOR_BUSY)
-            userService.setUserStep(chatId, Status.USER_CHATTING)
-            userService.addConversation(chatId, it)
             sendResponse(
                 chatId,
                 "sent.successfully.to.operator",
@@ -460,6 +455,10 @@ class BotHandler(
                 "finish.conversation",
                 "message.for.finish"
             )
+            botHandlerForMessages.sendMessage(it.chatId, message)
+            operatorService.setOperatorStep(it.chatId, Status.OPERATOR_BUSY)
+            userService.setUserStep(chatId, Status.USER_CHATTING)
+            userService.addConversation(chatId, it)
 
         } ?: run {
             userService.addQueue(chatId)
@@ -641,21 +640,41 @@ class BotHandlerForMessages(
 
     fun sendMessage(chatId: Long, message: Message) {
         when {
-            message.hasPhoto() -> botHandler.execute(sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption))
+            message.hasPhoto() -> botHandler.execute(
+                sendPhoto(
+                    chatId,
+                    message.photo[message.photo.size - 1].fileId,
+                    message.caption
+                )
+            )
+
             message.hasVideo() -> botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
             message.hasText() -> botHandler.execute(sendText(chatId, message.text))
-            message.hasAnimation() -> botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption))
+            message.hasAnimation() -> botHandler.execute(
+                sendAnimation(
+                    chatId,
+                    message.animation.fileId,
+                    message.caption
+                )
+            )
+
             message.hasAudio() -> botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
             message.hasVideoNote() -> botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
             message.hasDocument() -> botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
             message.hasSticker() -> botHandler.execute(sendSticker(chatId, message.sticker.fileId))
             message.hasVoice() -> botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
-            message.hasLocation() -> botHandler.execute(sendLocation(chatId, message.location.latitude, message.location.longitude))
+            message.hasLocation() -> botHandler.execute(
+                sendLocation(
+                    chatId,
+                    message.location.latitude,
+                    message.location.longitude
+                )
+            )
         }
     }
 
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String, latitude: Double? = null, longitude: Double? = null) {
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
         when (messageType) {
             "PHOTO" -> botHandler.execute(sendPhoto(chatId, messageContent, caption))
             "VIDEO" -> botHandler.execute(sendVideo(chatId, messageContent, caption))
@@ -667,9 +686,8 @@ class BotHandlerForMessages(
             "STICKER" -> botHandler.execute(sendSticker(chatId, messageContent))
             "VOICE" -> botHandler.execute(sendVoice(chatId, messageContent, caption))
             "LOCATION" -> {
-                if (latitude != null && longitude != null) {
-                    botHandler.execute(sendLocation(chatId, latitude, longitude))
-                }
+                val locations = messageContent.split(",")
+                botHandler.execute(sendLocation(chatId, locations[0].toDouble(), locations[1].toDouble()))
             }
         }
     }

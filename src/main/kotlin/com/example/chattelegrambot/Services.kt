@@ -267,8 +267,8 @@ class OperatorServiceImpl(
             // Sekundlar orasidagi farqni hisoblash
             val duration = java.time.Duration.between(startDate, endDate)
             val totalSeconds = duration.seconds
-            val totalHours = totalSeconds / 3600
-            val remainingSeconds = totalSeconds % 3600
+            val totalHours = totalSeconds / 3600 //0
+            val remainingSeconds = totalSeconds % 3600//2700
             val totalMinutes = remainingSeconds / 60
 
             // Ish haqi hisoblash
