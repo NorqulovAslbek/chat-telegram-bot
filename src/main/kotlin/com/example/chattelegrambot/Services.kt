@@ -4,7 +4,10 @@ import jakarta.transaction.Transactional
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.*
+import kotlin.time.Duration as Duration
 
 
 interface UserService {
@@ -55,6 +58,8 @@ interface OperatorService {
     fun getOperatorStep(chatId: Long): Status?
     fun getOperatorLanguage(chatId: Long): List<Language>?
     fun setOperatorStep(chatId: Long, status: Status)
+    fun getBotMessageId(messageId: Long): BotMessage
+    fun getMessageByMessageId(messageId: Long): Message
 }
 
 @Service
@@ -72,7 +77,6 @@ class UserServiceImpl(
 
     override fun addUser(registerUser: RegisterUser, chatId: Long) {
         val user = userRepository.findUsersByChatId(chatId)
-        user?.langType = registerUser.langType
         user?.fullName = registerUser.fullName
         user?.phone = registerUser.phoneNumber
         userRepository.save(user!!)
@@ -222,7 +226,8 @@ class OperatorServiceImpl(
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     @Lazy private val userService: UserService,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val botMessageRepository: BotMessageRepository
 ) : OperatorService {
     override fun addConversation(chatId: Long, user: Users) {
         operatorRepository.findOperatorByChatId(chatId)?.let {
@@ -308,23 +313,38 @@ class OperatorServiceImpl(
 
 
     override fun finishWork(chatId: Long) {
-        operatorRepository.findOperatorByChatId(chatId)?.let {
-            it.status = Status.OPERATOR_INACTIVE
-            operatorRepository.save(it)
-            val workSession = workSessionRepository.getTodayWorkSession(chatId)
-            val startDate = workSession.createdDate
-            val endDate = Date()
-            val workHour = (endDate.time - startDate!!.time) / (1000 * 60 * 60)
-            val workMinute = ((endDate.time - startDate.time) / (1000 * 60)) % 60
+        operatorRepository.findOperatorByChatId(chatId)?.let { operator ->
+            // Operatorni faolsiz holatga o'tkazish
+            operator.status = Status.OPERATOR_INACTIVE
+            operatorRepository.save(operator)
 
-            workSession.endDate = endDate
-            workSession.workHour = workHour.toInt()
-            workSession.workMinute = workMinute.toInt()
-            workSession.salary =
-                (workHour.toBigDecimal() * HOURLY_RATE) + ((workMinute.toBigDecimal() / BigDecimal("60.00")) * HOURLY_RATE)
+            // Ish boshlanish va tugash vaqtlari
+            val workSession = workSessionRepository.getTodayWorkSession(chatId)
+            val startDate = workSession.createdDate!!.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
+            val endDate = LocalDateTime.now()
+
+            // Sekundlar orasidagi farqni hisoblash
+            val duration = java.time.Duration.between(startDate, endDate)
+            val totalSeconds = duration.seconds
+            val totalHours = totalSeconds / 3600 //0
+            val remainingSeconds = totalSeconds % 3600//2700
+            val totalMinutes = remainingSeconds / 60
+
+            // Ish haqi hisoblash
+            val hourlyRate = HOURLY_RATE // Soatlik stavka
+            val salary = (totalHours.toBigDecimal() * hourlyRate).toDouble() +
+                    ((remainingSeconds.toBigDecimal().toDouble()/BigDecimal(3600).toDouble()) * hourlyRate.toDouble())
+
+            // Sessionni yangilash
+            workSession.endDate = java.util.Date.from(endDate.atZone(ZoneId.systemDefault()).toInstant())
+            workSession.workHour = totalHours.toInt()
+            workSession.workMinute = totalMinutes.toInt()
+            workSession.salary = salary
+
             workSessionRepository.save(workSession)
         }
     }
+
 
     @Transactional
     override fun finishConversation(chatId: Long): Long? {
@@ -357,6 +377,14 @@ class OperatorServiceImpl(
         operator?.status = status
         operatorRepository.save(operator!!)
     }
+
+    override fun getBotMessageId(messageId: Long): BotMessage {
+        return botMessageRepository.findByMessageId(messageId)
+    }
+
+    override fun getMessageByMessageId(messageId: Long): Message {
+        return messageRepository.findByMessageIdAndDeletedFalse(messageId)
+    }
 }
 
 
@@ -386,7 +414,7 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalWorkHours(): List<OperatorWorkHoursDto> {
         return workSessionRepository.findTotalWorkHoursRaw().map { row ->
             val operatorName = row[0] as String
-            val totalWorkHours = (row[1] as Number).toLong()
+            val totalWorkHours = (row[1] as Number).toDouble()
             OperatorWorkHoursDto(operatorName, totalWorkHours)
         }
     }
@@ -394,10 +422,11 @@ class OperatorStatisticsServiceImpl(
     override fun findTotalSalary(): List<OperatorSalaryDto> {
         return workSessionRepository.findTotalSalaryRaw().map { row ->
             val operatorName = row[0] as String
-            val totalSalary = (row[1] as BigDecimal?) ?: BigDecimal.ZERO
+            val totalSalary = (row[1] as Double?) ?: 0.0
             OperatorSalaryDto(operatorName, totalSalary)
         }
     }
+
 
 
     override fun findAverageRatings(): List<OperatorRatingDto> {
@@ -418,3 +447,4 @@ class OperatorStatisticsServiceImpl(
     }
 
 }
+

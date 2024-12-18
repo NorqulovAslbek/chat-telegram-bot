@@ -117,7 +117,7 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
 
     @Query(
         """
-    SELECT w.operator.fullName, SUM(w.workHour) 
+    SELECT w.operator.fullName,SUM(w.workMinute) / 60.0
     FROM workSessions w 
     GROUP BY w.operator.fullName
 """
@@ -127,7 +127,7 @@ interface WorkSessionRepository : BaseRepository<WorkSession> {
 
     @Query(
         """
-    SELECT w.operator.fullName, SUM(w.salary) 
+    SELECT w.operator.fullName, SUM(w.salary*1.0) 
     FROM workSessions w 
     GROUP BY w.operator.fullName
 """
@@ -168,6 +168,8 @@ interface QueueRepository : BaseRepository<Queue> {
     fun deleteUserFromQueue(chatId: Long, language: Language)
 
     fun findByDeletedFalseOrderByCreatedDateAsc(): List<Queue>
+
+    fun existsByUsersChatIdAndDeletedFalse(chatId: Long): Boolean
 }
 
 @Repository
@@ -243,6 +245,8 @@ interface MessageRepository : BaseRepository<Message> {
     )
     fun deleteMessagesByUser(chatId: Long)
 
+    fun findByMessageIdAndDeletedFalse(messageId: Long): Message
+
 }
 
 @Repository
@@ -274,3 +278,9 @@ interface ConversationRepository : BaseRepository<Conversation> {
     fun findOperatorConversationCountsRaw(): List<Array<Any>>
 
 }
+
+@Repository
+interface BotMessageRepository : BaseRepository<BotMessage>{
+    fun findByMessageId(messageId: Long): BotMessage
+}
+

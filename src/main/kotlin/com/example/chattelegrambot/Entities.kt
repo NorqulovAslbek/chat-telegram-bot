@@ -5,7 +5,6 @@ import org.hibernate.annotations.ColumnDefault
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
-import java.math.BigDecimal
 import java.util.*
 
 
@@ -86,10 +85,10 @@ data class Message(
     @Column(nullable = false)
     val senderType: SenderType,
     @Column(nullable = false)
-    val content: String,
+    var content: String,
     @Column(nullable = false)
     val type: String,
-    val caption: String? = null,
+    var caption: String? = null,
     @Column(nullable = false)
     val messageId: Int,
     var senderMessageId: Int?
@@ -114,6 +113,13 @@ data class WorkSession(
     var operator: Operator,
     var workHour: Int?,
     var workMinute: Int?,
-    var salary: BigDecimal?,
+    var salary: Double?,
     var endDate: Date?
+) : BaseEntity()
+
+
+@Entity
+class BotMessage(
+    val messageId: Int,
+    var telegramMessageId: Int
 ) : BaseEntity()

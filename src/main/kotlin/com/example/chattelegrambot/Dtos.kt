@@ -9,17 +9,16 @@ data class BaseMessage(val code: Int, val message: String?)
 data class RegisterUser(
     var fullName: String? = null,
     var phoneNumber: String? = null,
-    var langType: Language? = null
 )
 
 data class OperatorWorkHoursDto(
     val operatorName: String,
-    val totalWorkHours: Long
+    val totalWorkHours: Double
 )
 
 data class OperatorSalaryDto(
     val operatorName: String,
-    val totalSalary: BigDecimal
+    val totalSalary: Double?
 )
 
 data class OperatorRatingDto(
@@ -36,4 +35,8 @@ data class OperatorConversationDto(
 data class RegisterOperator(
     val id: Long,
     val langType: List<Language>,
+)
+
+data class AdminCount(
+    val adminCount:Long
 )
