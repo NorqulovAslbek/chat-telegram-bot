@@ -19,7 +19,15 @@ interface UserService {
     fun addConversationToMessage(chatId: Long)
     fun addConversationToMessage(chatId: Long, content: String)
     fun deleteQueue(chatId: Long) ///
-    fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) ///
+    fun addMessage(
+        chatId: Long,
+        content: String,
+        type: String,
+        caption: String?,
+        messageId: Int,
+        senderMessageId: Int?
+    ) ///
+
     fun addConversation(chatId: Long, operator: Operator) ///
     fun addRating(user: Users, operator: Operator, conversation: Conversation) ///
     fun getUserStep(chatId: Long): Status?
@@ -28,14 +36,16 @@ interface UserService {
     fun addLanguage(chatId: Long, langType: Language)
     fun getUserLanguage(chatId: Long): List<Language>?
     fun deleteUser(chatId: Long)
+    fun addSenderMessageId(chatId: Long, content: String, senderMessageId: Int?)
 }
 
 interface OperatorService {
     fun addConversation(chatId: Long, user: Users)
-    fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int)
+    fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int, senderMessageId: Int)
     fun addOperator(userId: Long, language: List<Language>): Long?
     fun changeStatus(chatId: Long, status: Status)
     fun findOperator(operatorChatId: Long): Operator?
+    fun findMessageByOperator(chatId: Long, message: String): Message?
     fun findAvailableOperator(langType: Language): Operator?
     fun startWork(chatId: Long): Users?
     fun startWorkSession(chatId: Long)
@@ -130,8 +140,26 @@ class UserServiceImpl(
         }
     }
 
-    override fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) {
-        messageRepository.save(Message(null, chatId, SenderType.USER, content, type, caption, messageId))
+    override fun addMessage(
+        chatId: Long,
+        content: String,
+        type: String,
+        caption: String?,
+        messageId: Int,
+        senderMessageId: Int?
+    ) {
+        messageRepository.save(
+            Message(
+                null,
+                chatId,
+                SenderType.USER,
+                content,
+                type,
+                caption,
+                messageId,
+                senderMessageId
+            )
+        )
     }
 
     override fun addConversation(chatId: Long, operator: Operator) {
@@ -176,6 +204,13 @@ class UserServiceImpl(
         }
     }
 
+    override fun addSenderMessageId(chatId: Long, content: String, senderMessageId: Int?) {
+        messageRepository.findMessageByUser(chatId, content)?.let {
+            it.senderMessageId = senderMessageId
+            messageRepository.save(it)
+        }
+    }
+
 }
 
 
@@ -195,9 +230,27 @@ class OperatorServiceImpl(
         }
     }
 
-    override fun addMessage(chatId: Long, content: String, type: String, caption: String?, messageId: Int) {
+    override fun addMessage(
+        chatId: Long,
+        content: String,
+        type: String,
+        caption: String?,
+        messageId: Int,
+        senderMessageId: Int
+    ) {
         conversationRepository.findConversationByOperator(chatId)?.let { item ->
-            messageRepository.save(Message(item, chatId, SenderType.OPERATOR, content, type, caption, messageId))
+            messageRepository.save(
+                Message(
+                    item,
+                    chatId,
+                    SenderType.OPERATOR,
+                    content,
+                    type,
+                    caption,
+                    messageId,
+                    senderMessageId
+                )
+            )
         }
     }
 
@@ -218,6 +271,10 @@ class OperatorServiceImpl(
 
     override fun findOperator(operatorChatId: Long): Operator? {
         return operatorRepository.findOperatorByChatId(operatorChatId)
+    }
+
+    override fun findMessageByOperator(chatId: Long, message: String): Message? {
+        return messageRepository.findMessageByOperator(chatId, message)
     }
 
     override fun findAvailableOperator(langType: Language): Operator? {

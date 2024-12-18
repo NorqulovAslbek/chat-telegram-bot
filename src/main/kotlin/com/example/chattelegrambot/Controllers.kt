@@ -119,15 +119,40 @@ class BotHandler(
                                 )
                                 find(chatId)
                             } else {
-                                addMessageForUser(chatId, update.message, update.message.messageId)
+                                addMessageForUser(chatId, update.message, update.message.messageId, null)
                             }
                         } else {
-                            addMessageForUser(chatId, update.message, update.message.messageId)
+                            addMessageForUser(chatId, update.message, update.message.messageId, null)
                         }
                     }
 
                     Status.USER_CHATTING -> {
-                        findConversation(chatId, message, mId)
+                        val operatorChatId = operatorService.findConversationByOperator(chatId)?.operator?.chatId
+                        if (update.message.isReply) {
+                            val operatorMessageContent =
+                                botHandlerForMessages.getContent(update.message.replyToMessage)
+                            val operatorMessage =
+                                operatorMessageContent?.let {
+                                    operatorService.findMessageByOperator(
+                                        operatorChatId!!,
+                                        it
+                                    )
+                                }
+                            if (operatorMessage != null) {
+                                val senderMessageId =
+                                    sendReplyMessage(operatorChatId!!, message, operatorMessage.messageId)
+                                addMessageForUser(chatId, message, mId, senderMessageId)
+                            } else {
+                                val userMessage = operatorMessageContent?.let {
+                                    userService.findMessageByUser(chatId, it)
+                                }
+                                val senderMessageId =
+                                    sendReplyMessage(operatorChatId!!, message, userMessage?.senderMessageId)
+                                addMessageForUser(chatId, message, mId, senderMessageId)
+                            }
+                        } else {
+                            findConversation(chatId, message, mId)
+                        }
                     }
 
                     Status.OPERATOR_START_WORK -> {
@@ -161,18 +186,27 @@ class BotHandler(
                                     val userMessage =
                                         userMessageContent?.let { userService.findMessageByUser(userChatId!!, it) }
                                     if (userMessage != null) {
-                                        sendReplyMessage(userChatId!!, message, userMessage.messageId)
+                                        val senderMessageId =
+                                            sendReplyMessage(userChatId!!, message, userMessage.messageId)
                                         addReplyMessageForOperator(
                                             chatId,
                                             message,
                                             mId,
                                             userChatId,
-                                            userMessageContent
+                                            userMessageContent,
+                                            senderMessageId
                                         )
+                                    } else {
+                                        val operatorMessage = userMessageContent?.let {
+                                            operatorService.findMessageByOperator(chatId, it)
+                                        }
+                                        val senderMessageId =
+                                            sendReplyMessage(userChatId!!, message, operatorMessage?.senderMessageId)
+                                        addMessageForOperator(chatId, message, mId, senderMessageId)
                                     }
                                 } else {
-                                    botHandlerForMessages.sendMessage(userChatId!!, message)
-                                    addMessageForOperator(chatId, message, mId, userChatId)
+                                    val senderMessageId = botHandlerForMessages.sendMessage(userChatId!!, message)
+                                    addMessageForOperator(chatId, message, mId, userChatId, senderMessageId)
                                 }
                             } catch (tae: TelegramApiException) {
                                 tae.message?.let {
@@ -290,15 +324,6 @@ class BotHandler(
                     "sent.successfully.to.operator",
                     operatorService.findOperator(chatId)?.fullName, ReplyKeyboardRemove(true)
                 )
-                userService.findMessagesByUser(it.chatId)?.let {
-                    it.forEach { message ->
-                        botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
-                    }
-                }
-                operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
-                userService.setUserStep(it.chatId, Status.USER_CHATTING)
-                operatorService.addConversation(chatId, it)
-                userService.deleteQueue(it.chatId)
                 sendResponse(
                     chatId,
                     "start.conversation",
@@ -310,6 +335,18 @@ class BotHandler(
                     "finish.conversation",
                     "message.for.finish"
                 )
+
+                userService.findMessagesByUser(it.chatId)?.let {
+                    it.forEach { message ->
+                        val senderMessageId =
+                            botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content)
+                        userService.addSenderMessageId(message.senderId, message.content, senderMessageId)
+                    }
+                }
+                operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
+                userService.setUserStep(it.chatId, Status.USER_CHATTING)
+                operatorService.addConversation(chatId, it)
+                userService.deleteQueue(it.chatId)
 
             } catch (tae: TelegramApiException) {
                 tae.message?.let { item ->
@@ -396,8 +433,9 @@ class BotHandler(
 
 
     fun sendWritedMessage(chatId: Long, message: Message, messageId: Int) {
+        var senderMessageId: Int? = null
         operatorService.findAvailableOperator(userService.getUserLanguage(chatId)!![0])?.let {
-            botHandlerForMessages.sendMessage(it.chatId, message)
+            senderMessageId = botHandlerForMessages.sendMessage(it.chatId, message)
             operatorService.setOperatorStep(it.chatId, Status.OPERATOR_BUSY)
             userService.setUserStep(chatId, Status.USER_CHATTING)
             userService.addConversation(chatId, it)
@@ -431,24 +469,36 @@ class BotHandler(
                 "back.message"
             )
         }
-        addMessageForUser(chatId, message, messageId)
+        addMessageForUser(chatId, message, messageId, senderMessageId)
     }
 
-    fun addMessageForUser(chatId: Long, message: Message, messageId: Int) {
+    fun addMessageForUser(chatId: Long, message: Message, messageId: Int, senderMessageId: Int?) {
         botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
             botHandlerForMessages.getContent(message)?.let {
-                userService.addMessage(chatId, it, item, message.caption, messageId)
+                userService.addMessage(chatId, it, item, message.caption, messageId, senderMessageId)
             }
         }
     }
 
-    fun addMessageForOperator(chatId: Long, message: Message, messageId: Int, userChatId: Long) {
+    fun addMessageForOperator(chatId: Long, message: Message, messageId: Int, userChatId: Long, senderMessageId: Int?) {
         botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
             botHandlerForMessages.getContent(message)?.let {
-                operatorService.addMessage(chatId, it, item, message.caption, messageId)
+                senderMessageId?.let { id ->
+                    operatorService.addMessage(chatId, it, item, message.caption, messageId, id)
+                    userService.addConversationToMessage(userChatId)
+                }
             }
         }
-        userService.addConversationToMessage(userChatId)
+    }
+
+    fun addMessageForOperator(chatId: Long, message: Message, messageId: Int, senderMessageId: Int?) {
+        botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
+            botHandlerForMessages.getContent(message)?.let {
+                senderMessageId?.let { id ->
+                    operatorService.addMessage(chatId, it, item, message.caption, messageId, id)
+                }
+            }
+        }
     }
 
     fun addReplyMessageForOperator(
@@ -456,26 +506,31 @@ class BotHandler(
         message: Message,
         messageId: Int,
         userChatId: Long,
-        userContent: String
+        userContent: String,
+        senderMessageId: Int?
     ) {
         botHandlerForMessages.findTypeOfMessage(message)?.let { item ->
             botHandlerForMessages.getContent(message)?.let {
-                operatorService.addMessage(chatId, it, item, message.caption, messageId)
+                senderMessageId?.let { id ->
+                    operatorService.addMessage(chatId, it, item, message.caption, messageId, id)
+                    userService.addConversationToMessage(userChatId, userContent)
+                }
             }
         }
-        userService.addConversationToMessage(userChatId, userContent)
     }
 
 
     fun findConversation(chatId: Long, message: Message, messageId: Int) {
         userService.findConversationByUser(chatId)?.let {
-            botHandlerForMessages.sendMessage(it.operator.chatId, message)
-            addMessageForUser(chatId, message, messageId)
+            val senderMessageId = botHandlerForMessages.sendMessage(it.operator.chatId, message)
+            addMessageForUser(chatId, message, messageId, senderMessageId)
         }
     }
 
-    fun sendReplyMessage(chatId: Long, operatorMessage: Message, messageId: Int) {
-        botHandlerForMessages.sendRepLyMessage(chatId, operatorMessage, messageId)
+    fun sendReplyMessage(chatId: Long, operatorMessage: Message, messageId: Int?): Int? {
+        return messageId?.let {
+            botHandlerForMessages.sendRepLyMessage(chatId, operatorMessage, it)
+        }
     }
 
     fun finishConversation(chatId: Long) {
@@ -596,87 +651,112 @@ class BotHandlerForMessages(
     private val botHandler: BotHandler
 ) {
 
-    fun sendMessage(chatId: Long, message: Message) {
+    fun sendMessage(chatId: Long, message: Message): Int? {
         if (message.hasPhoto()) {
-            botHandler.execute(sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption))
+            return botHandler.execute(
+                sendPhoto(
+                    chatId,
+                    message.photo[message.photo.size - 1].fileId,
+                    message.caption
+                )
+            ).messageId
+
         } else if (message.hasVideo()) {
-            botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
+            return botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption)).messageId
         } else if (message.hasText()) {
-            botHandler.execute(sendText(chatId, message.text))
+            return botHandler.execute(sendText(chatId, message.text)).messageId
         } else if (message.hasAnimation()) {
-            botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption))
+            return botHandler.execute(sendAnimation(chatId, message.animation.fileId, message.caption)).messageId
         } else if (message.hasAudio()) {
-            botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
+            return botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption)).messageId
         } else if (message.hasVideoNote()) {
-            botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
+            return botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId)).messageId
         } else if (message.hasDocument()) {
-            botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
+            return botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption)).messageId
         } else if (message.hasSticker()) {
-            botHandler.execute(sendSticker(chatId, message.sticker.fileId))
+            return botHandler.execute(sendSticker(chatId, message.sticker.fileId)).messageId
         } else if (message.hasVoice()) {
-            botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+            return botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption)).messageId
+        } else if (message.hasDice()) {
+            return botHandler.execute(sendDice(chatId, message.dice.emoji)).messageId
+        }
+//        else if (message.hasLocation()) {
+//            return botHandler.execute(sendLocation(message.location.))
+//        }
+        else {
+            return null
         }
     }
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String): Int? {
         if (messageType == "PHOTO") {
-            botHandler.execute(sendPhoto(chatId, messageContent, caption))
+            return botHandler.execute(sendPhoto(chatId, messageContent, caption)).messageId
         } else if (messageType == "VIDEO") {
-            botHandler.execute(sendVideo(chatId, messageContent, caption))
+            return botHandler.execute(sendVideo(chatId, messageContent, caption)).messageId
         } else if (messageType == "TEXT") {
-            botHandler.execute(sendText(chatId, messageContent))
+            return botHandler.execute(sendText(chatId, messageContent)).messageId
         } else if (messageType == "ANIMATION") {
-            botHandler.execute(sendAnimation(chatId, messageContent, caption))
+            return botHandler.execute(sendAnimation(chatId, messageContent, caption)).messageId
         } else if (messageType == "AUDIO") {
-            botHandler.execute(sendAudio(chatId, messageContent, caption))
+            return botHandler.execute(sendAudio(chatId, messageContent, caption)).messageId
         } else if (messageType == "VIDEONOTE") {
-            botHandler.execute(sendVideoNote(chatId, messageContent))
+            return botHandler.execute(sendVideoNote(chatId, messageContent)).messageId
         } else if (messageType == "DOCUMENT") {
-            botHandler.execute(sendDocument(chatId, messageContent, caption))
+            return botHandler.execute(sendDocument(chatId, messageContent, caption)).messageId
         } else if (messageType == "STICKER") {
-            botHandler.execute(sendSticker(chatId, messageContent))
+            return botHandler.execute(sendSticker(chatId, messageContent)).messageId
         } else if (messageType == "VOICE") {
-            botHandler.execute(sendVoice(chatId, messageContent, caption))
+            return botHandler.execute(sendVoice(chatId, messageContent, caption)).messageId
+        } else if (messageType == "DICE") {
+            return botHandler.execute(sendDice(chatId, messageContent)).messageId
+        } else {
+            return null
         }
     }
 
-    fun sendRepLyMessage(chatId: Long, message: Message, messageId: Int) {
+    fun sendRepLyMessage(chatId: Long, message: Message, messageId: Int): Int? {
         if (message.hasPhoto()) {
             val sendPhoto = sendPhoto(chatId, message.photo[message.photo.size - 1].fileId, message.caption)
             sendPhoto.replyToMessageId = messageId
-            botHandler.execute(sendPhoto)
+            return botHandler.execute(sendPhoto).messageId
         } else if (message.hasVideo()) {
             val sendVideo = sendVideo(chatId, message.video.fileId, message.caption)
             sendVideo.replyToMessageId = messageId
-            botHandler.execute(sendVideo)
+            return botHandler.execute(sendVideo).messageId
         } else if (message.hasText()) {
             val sendText = sendText(chatId, message.text)
             sendText.replyToMessageId = messageId
-            botHandler.execute(sendText)
+            return botHandler.execute(sendText).messageId
         } else if (message.hasAnimation()) {
             val sendAnimation = sendAnimation(chatId, message.animation.fileId, message.caption)
             sendAnimation.replyToMessageId = messageId
-            botHandler.execute(sendAnimation)
+            return botHandler.execute(sendAnimation).messageId
         } else if (message.hasAudio()) {
             val sendAudio = sendAudio(chatId, message.audio.fileId, message.caption)
             sendAudio.replyToMessageId = messageId
-            botHandler.execute(sendAudio)
+            return botHandler.execute(sendAudio).messageId
         } else if (message.hasVideoNote()) {
             val sendVideoNote = sendVideoNote(chatId, message.videoNote.fileId)
             sendVideoNote.replyToMessageId = messageId
-            botHandler.execute(sendVideoNote)
+            return botHandler.execute(sendVideoNote).messageId
         } else if (message.hasDocument()) {
             val sendDocument = sendDocument(chatId, message.document.fileId, message.caption)
             sendDocument.replyToMessageId = messageId
-            botHandler.execute(sendDocument)
+            return botHandler.execute(sendDocument).messageId
         } else if (message.hasSticker()) {
             val sendSticker = sendSticker(chatId, message.sticker.fileId)
             sendSticker.replyToMessageId = messageId
-            botHandler.execute(sendSticker)
+            return botHandler.execute(sendSticker).messageId
         } else if (message.hasVoice()) {
             val sendVoice = sendVoice(chatId, message.voice.fileId, message.caption)
             sendVoice.replyToMessageId = messageId
-            botHandler.execute(sendVoice)
+            return botHandler.execute(sendVoice).messageId
+        } else if (message.hasDice()) {
+            val sendDice = sendDice(chatId, message.dice.emoji)
+            sendDice.replyToMessageId = messageId
+            return botHandler.execute(sendDice).messageId
+        } else {
+            return null
         }
     }
 
@@ -699,6 +779,8 @@ class BotHandlerForMessages(
             return "STICKER"
         } else if (message.hasVoice()) {
             return "VOICE"
+        } else if (message.hasDice()) {
+            return "DICE"
         } else {
             return null
         }
@@ -723,6 +805,8 @@ class BotHandlerForMessages(
             return message.sticker.fileId
         } else if (message.hasVoice()) {
             return message.voice.fileId
+        } else if (message.hasDice()) {
+            return message.dice.emoji
         } else {
             return null
         }
@@ -805,6 +889,17 @@ class BotHandlerForMessages(
             this.caption = caption
         }
     }
+
+    fun sendDice(chatId: Long, fileId: String): SendDice {
+        return SendDice().apply {
+            this.chatId = chatId.toString()
+            this.emoji = fileId
+        }
+    }
+
+//    fun sendLocation(chatId: Long, fileId: String, caption: String?): SendLocation {
+//        return
+//    }
 }
 
 @Controller

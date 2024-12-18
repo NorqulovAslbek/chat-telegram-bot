@@ -91,7 +91,8 @@ data class Message(
     val type: String,
     val caption: String? = null,
     @Column(nullable = false)
-    val messageId: Int
+    val messageId: Int,
+    var senderMessageId: Int?
 ) : BaseEntity()
 
 
