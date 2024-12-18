@@ -169,7 +169,7 @@ interface QueueRepository : BaseRepository<Queue> {
 
     fun findByDeletedFalseOrderByCreatedDateAsc(): List<Queue>
 
-    fun existsByUsers_ChatIdAndDeletedFalse(chatId: Long): Boolean
+    fun existsByUsersChatIdAndDeletedFalse(chatId: Long): Boolean
 }
 
 @Repository

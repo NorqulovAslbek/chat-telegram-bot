@@ -256,7 +256,7 @@ class BotHandler(
                 chatId = conversation?.users?.chatId
             }
 
-            if (queueRepository.existsByUsers_ChatIdAndDeletedFalse(editChatId)) {
+            if (queueRepository.existsByUsersChatIdAndDeletedFalse(editChatId)) {
                 if (editedMessage.hasText()) {
                     val text = editedMessage.text
                     operatorService.getMessageByMessageId(messageId).let {
@@ -289,7 +289,7 @@ class BotHandler(
                     }
                 }
 
-            }else if (editedMessage.hasText()) {
+            } else if (editedMessage.hasText()) {
                 val editText = editedMessage.text
                 val editMessage = EditMessageText()
                 editMessage.chatId = chatId.toString()
@@ -352,7 +352,7 @@ class BotHandler(
                 execute(editMessage)
             }
 
-       }
+        }
     }
 
     fun find(chatId: Long) {
@@ -408,7 +408,13 @@ class BotHandler(
                 )
                 userService.findMessagesByUser(it.chatId)?.let {
                     it.forEach { message ->
-                        botHandlerForMessages.sendMessage(chatId, message.type, message.caption, message.content, message.messageId)
+                        botHandlerForMessages.sendMessage(
+                            chatId,
+                            message.type,
+                            message.caption,
+                            message.content,
+                            message.messageId
+                        )
                     }
                 }
                 operatorService.setOperatorStep(chatId, Status.OPERATOR_BUSY)
@@ -759,13 +765,14 @@ class BotHandlerForMessages(
             val messageId = message.messageId
             botMessageRepository.save(BotMessage(messageId, telegramMessageId))
         } else if (message.hasVoice()) {
-            val telegramMessageId = botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption)).messageId
+            val telegramMessageId =
+                botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption)).messageId
             val messageId = message.messageId
             botMessageRepository.save(BotMessage(messageId, telegramMessageId))
         }
     }
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String, messageId : Int) {
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String, messageId: Int) {
         if (messageType == "PHOTO") {
             val telegramMessageId = botHandler.execute(sendPhoto(chatId, messageContent, caption)).messageId
             botMessageRepository.save(BotMessage(messageId, telegramMessageId))
