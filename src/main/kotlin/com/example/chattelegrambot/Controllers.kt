@@ -809,56 +809,71 @@ class BotHandlerForMessages(
     private val botHandler: BotHandler
 ) {
 
-    fun sendMessage(chatId: Long, message: Message) {
-        when {
+    fun sendMessage(chatId: Long, message: Message): Int? {
+        return when {
             message.hasPhoto() -> botHandler.execute(
                 sendPhoto(
                     chatId,
                     message.photo[message.photo.size - 1].fileId,
                     message.caption
                 )
-            )
+            ).messageId
 
-            message.hasVideo() -> botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption))
-            message.hasText() -> botHandler.execute(sendText(chatId, message.text))
+            message.hasVideo() -> botHandler.execute(sendVideo(chatId, message.video.fileId, message.caption)).messageId
+            message.hasText() -> botHandler.execute(sendText(chatId, message.text)).messageId
             message.hasAnimation() -> botHandler.execute(
                 sendAnimation(
                     chatId,
                     message.animation.fileId,
                     message.caption
                 )
-            )
+            ).messageId
 
-            message.hasAudio() -> botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption))
-            message.hasVideoNote() -> botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId))
-            message.hasDocument() -> botHandler.execute(sendDocument(chatId, message.document.fileId, message.caption))
-            message.hasSticker() -> botHandler.execute(sendSticker(chatId, message.sticker.fileId))
-            message.hasVoice() -> botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption))
+            message.hasAudio() -> botHandler.execute(sendAudio(chatId, message.audio.fileId, message.caption)).messageId
+            message.hasVideoNote() -> botHandler.execute(sendVideoNote(chatId, message.videoNote.fileId)).messageId
+            message.hasDocument() -> botHandler.execute(
+                sendDocument(
+                    chatId,
+                    message.document.fileId,
+                    message.caption
+                )
+            ).messageId
+
+            message.hasSticker() -> botHandler.execute(sendSticker(chatId, message.sticker.fileId)).messageId
+            message.hasVoice() -> botHandler.execute(sendVoice(chatId, message.voice.fileId, message.caption)).messageId
+            message.hasDice() -> botHandler.execute(sendDice(chatId, message.dice.emoji)).messageId
             message.hasLocation() -> botHandler.execute(
                 sendLocation(
                     chatId,
                     message.location.latitude,
                     message.location.longitude
                 )
-            )
+            ).messageId
+
+            else -> null
         }
     }
 
 
-    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String) {
-        when (messageType) {
-            "PHOTO" -> botHandler.execute(sendPhoto(chatId, messageContent, caption))
-            "VIDEO" -> botHandler.execute(sendVideo(chatId, messageContent, caption))
-            "TEXT" -> botHandler.execute(sendText(chatId, messageContent))
-            "ANIMATION" -> botHandler.execute(sendAnimation(chatId, messageContent, caption))
-            "AUDIO" -> botHandler.execute(sendAudio(chatId, messageContent, caption))
-            "VIDEONOTE" -> botHandler.execute(sendVideoNote(chatId, messageContent))
-            "DOCUMENT" -> botHandler.execute(sendDocument(chatId, messageContent, caption))
-            "STICKER" -> botHandler.execute(sendSticker(chatId, messageContent))
-            "VOICE" -> botHandler.execute(sendVoice(chatId, messageContent, caption))
+    fun sendMessage(chatId: Long, messageType: String, caption: String?, messageContent: String): Int? {
+        return when (messageType) {
+            "PHOTO" -> botHandler.execute(sendPhoto(chatId, messageContent, caption)).messageId
+            "VIDEO" -> botHandler.execute(sendVideo(chatId, messageContent, caption)).messageId
+            "TEXT" -> botHandler.execute(sendText(chatId, messageContent)).messageId
+            "ANIMATION" -> botHandler.execute(sendAnimation(chatId, messageContent, caption)).messageId
+            "AUDIO" -> botHandler.execute(sendAudio(chatId, messageContent, caption)).messageId
+            "VIDEONOTE" -> botHandler.execute(sendVideoNote(chatId, messageContent)).messageId
+            "DOCUMENT" -> botHandler.execute(sendDocument(chatId, messageContent, caption)).messageId
+            "STICKER" -> botHandler.execute(sendSticker(chatId, messageContent)).messageId
+            "VOICE" -> botHandler.execute(sendVoice(chatId, messageContent, caption)).messageId
+            "DICE" -> botHandler.execute(sendDice(chatId, messageContent)).messageId
             "LOCATION" -> {
                 val locations = messageContent.split(",")
-                botHandler.execute(sendLocation(chatId, locations[0].toDouble(), locations[1].toDouble()))
+                botHandler.execute(sendLocation(chatId, locations[0].toDouble(), locations[1].toDouble())).messageId
+            }
+
+            else -> {
+                return null
             }
         }
     }
@@ -904,13 +919,12 @@ class BotHandlerForMessages(
             val sendDice = sendDice(chatId, message.dice.emoji)
             sendDice.replyToMessageId = messageId
             return botHandler.execute(sendDice).messageId
-        } else {
-            return null
-            botHandler.execute(sendVoice)
         } else if (message.hasLocation()) {
             val sendLocation = sendLocation(chatId, message.location.latitude, message.location.longitude)
             sendLocation.replyToMessageId = messageId
-            botHandler.execute(sendLocation)
+            return botHandler.execute(sendLocation).messageId
+        } else {
+            return null
         }
     }
 
@@ -925,6 +939,7 @@ class BotHandlerForMessages(
             message.hasDocument() -> "DOCUMENT"
             message.hasSticker() -> "STICKER"
             message.hasVoice() -> "VOICE"
+            message.hasDice() -> "DICE"
             message.hasLocation() -> "LOCATION"
             else -> null
         }
@@ -941,6 +956,7 @@ class BotHandlerForMessages(
             message.hasDocument() -> message.document.fileId
             message.hasSticker() -> message.sticker.fileId
             message.hasVoice() -> message.voice.fileId
+            message.hasDice() -> message.dice.emoji
             message.hasLocation() -> "${message.location.latitude},${message.location.longitude}"
             else -> null
         }
