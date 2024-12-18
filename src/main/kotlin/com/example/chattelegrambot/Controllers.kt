@@ -35,7 +35,7 @@ class BotHandler(
     private val operatorService: OperatorService,
     private val queueRepository: QueueRepository,
     private val messageRepository: MessageRepository
-) : TelegramLongPollingBot() {
+) : TelegramLongPollingBot("") {
     override fun getBotUsername(): String {
         return "@chat_telegram_1_0_bot"
     }
@@ -193,9 +193,15 @@ class BotHandler(
                     }
 
                     Status.OPERATOR_BUSY -> {
-                        if (text != null && (text.equals(getMessageFromResourceBundle(chatId, "finish.work")) )) {
+                        if (text != null && (text.equals(getMessageFromResourceBundle(chatId, "finish.work")))) {
                             finishWork(chatId)
-                        } else if (text != null && (text.equals(getMessageFromResourceBundle(chatId, "finish.conversation")))) {
+                        } else if (text != null && (text.equals(
+                                getMessageFromResourceBundle(
+                                    chatId,
+                                    "finish.conversation"
+                                )
+                            ))
+                        ) {
                             finishConversation(chatId)
                         } else {
                             val userChatId = operatorService.findConversationByOperator(chatId)?.users?.chatId
@@ -264,7 +270,8 @@ class BotHandler(
 
                 else -> ""
             }
-        } else if (update != null && update.hasCallbackQuery()) {
+        }
+        else if (update != null && update.hasCallbackQuery()) {
             val chatId = update.callbackQuery.message.chatId
             val data = update.callbackQuery.data
             val userStep = userService.getUserStep(chatId)
@@ -306,7 +313,8 @@ class BotHandler(
             }
 
 
-        } else if (update != null && update.hasEditedMessage()) {
+        }
+        else if (update != null && update.hasEditedMessage()) {
             val editedMessage = update.editedMessage
             val editChatId = editedMessage.chatId
             val messageId = editedMessage.messageId.toLong()
@@ -370,7 +378,7 @@ class BotHandler(
             } else if (editedMessage.hasDocument()) {
                 val editMessage = EditMessageMedia()
                 editMessage.chatId = chatId.toString()
-                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
                 val newMedia = InputMediaDocument()
                 newMedia.media = editedMessage.document.fileId
                 newMedia.caption = editedMessage.caption ?: ""
@@ -379,7 +387,7 @@ class BotHandler(
             } else if (editedMessage.hasVideo()) {
                 val editMessage = EditMessageMedia()
                 editMessage.chatId = chatId.toString()
-                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
                 val newMedia = InputMediaVideo()
                 newMedia.media = editedMessage.video.fileId
                 newMedia.caption = editedMessage.caption ?: ""
@@ -388,7 +396,7 @@ class BotHandler(
             } else if (editedMessage.hasVoice()) {
                 val editMessage = EditMessageMedia()
                 editMessage.chatId = chatId.toString()
-                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
                 val newMedia = InputMediaDocument()
                 newMedia.media = editedMessage.voice.fileId
                 newMedia.caption = editedMessage.caption ?: ""
@@ -397,7 +405,7 @@ class BotHandler(
             } else if (editedMessage.hasAudio()) {
                 val editMessage = EditMessageMedia()
                 editMessage.chatId = chatId.toString()
-                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
                 val newMedia = InputMediaAudio()
                 newMedia.media = editedMessage.audio.fileId
                 newMedia.caption = editedMessage.caption ?: ""
@@ -406,7 +414,7 @@ class BotHandler(
             } else if (editedMessage.hasAnimation()) {
                 val editMessage = EditMessageMedia()
                 editMessage.chatId = chatId.toString()
-                editMessage.messageId = operatorService.getBotMessageId(messageId.toLong()).telegramMessageId
+                editMessage.messageId = operatorService.getBotMessageId(messageId).telegramMessageId
                 val newMedia = InputMediaDocument()
                 newMedia.media = editedMessage.animation.fileId
                 newMedia.caption = editedMessage.caption ?: ""
@@ -1040,9 +1048,6 @@ class BotHandlerForMessages(
         }
     }
 
-//    fun sendLocation(chatId: Long, fileId: String, caption: String?): SendLocation {
-//        return
-//    }
 
     fun sendLocation(chatId: Long, latitude: Double, longitude: Double): SendLocation {
         return SendLocation().apply {
