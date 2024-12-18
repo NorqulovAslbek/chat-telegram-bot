@@ -130,7 +130,6 @@ class BotHandler(
                     Status.USER_QUEUE -> {
                         if (text != null) {
                             if (text.equals(getMessageFromResourceBundle(chatId, "back"))) {
-
                                 userService.deleteQueue(chatId)
                                 userService.deleteMessage(chatId)
                                 sendResponse(
