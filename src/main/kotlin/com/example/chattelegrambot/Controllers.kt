@@ -129,7 +129,8 @@ class BotHandler(
 
                     Status.USER_QUEUE -> {
                         if (text != null) {
-                            if (text.equals("Orqaga") || text.equals("Back")) {
+                            if (text.equals(getMessageFromResourceBundle(chatId, "back"))) {
+
                                 userService.deleteQueue(chatId)
                                 userService.deleteMessage(chatId)
                                 sendResponse(
@@ -177,7 +178,7 @@ class BotHandler(
 
                     Status.OPERATOR_START_WORK -> {
                         if (text != null) {
-                            if (text.equals("Start Work") || text.equals("Ishni Boshlash")) {
+                            if (text.equals(getMessageFromResourceBundle(chatId, "start.work"))) {
                                 startWork(chatId)
                                 operatorService.startWorkSession(chatId)
                             }
@@ -186,16 +187,16 @@ class BotHandler(
 
                     Status.OPERATOR_ACTIVE -> {
                         if (text != null) {
-                            if (text.equals("Ishni Yakunlash") || text.equals("Finish Work")) {
+                            if (text.equals(getMessageFromResourceBundle(chatId, "finish.work"))) {
                                 finishWork(chatId)
                             }
                         }
                     }
 
                     Status.OPERATOR_BUSY -> {
-                        if (text != null && (text.equals("Ishni Yakunlash") || text.equals("Finish Work"))) {
+                        if (text != null && (text.equals(getMessageFromResourceBundle(chatId, "finish.work")) )) {
                             finishWork(chatId)
-                        } else if (text != null && (text.equals("Suhbatni Yakunlash") || text.equals("Finish Conversation"))) {
+                        } else if (text != null && (text.equals(getMessageFromResourceBundle(chatId, "finish.conversation")))) {
                             finishConversation(chatId)
                         } else {
                             val userChatId = operatorService.findConversationByOperator(chatId)?.users?.chatId

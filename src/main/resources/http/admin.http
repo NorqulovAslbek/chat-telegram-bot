@@ -3,5 +3,5 @@ Content-Type: application/json
 
 {
   "id": 1,
-  "langType": ["UZ","EN"]
+  "langType": ["EN"]
 }
