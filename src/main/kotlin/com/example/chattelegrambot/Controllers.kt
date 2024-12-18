@@ -86,7 +86,7 @@ class BotHandler(
             val message = update.message
             val mId = update.message.messageId
             val text = update.message.text
-            if (text != null && text.equals("/changeLanguage")
+            if (text != null && text.equals("/changelanguage")
                 && userService.getUserStep(chatId) == Status.USER_WRITE_MESSAGE
             ) {
                 deleteCallBack(chatId, mId)
@@ -146,7 +146,7 @@ class BotHandler(
                     }
 
                     Status.USER_CHATTING -> {
-                        val operatorChatId = operatorService.findConversationByOperator(chatId)?.operator?.chatId
+                        val operatorChatId = userService.findConversationByUser(chatId)?.operator?.chatId
                         if (update.message.isReply) {
                             val operatorMessageContent =
                                 botHandlerForMessages.getContent(update.message.replyToMessage)
@@ -434,26 +434,30 @@ class BotHandler(
     fun find(chatId: Long) {
         when {
             userService.findUser(chatId)?.phone != null -> {
-                userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
-                sendResponse(
-                    chatId,
-                    "have.question", ReplyKeyboardRemove(true)
-                )
+                if (userService.getUserStep(chatId) == Status.USER_WRITE_MESSAGE) {
+                    sendResponse(
+                        chatId,
+                        "write.question",
+                        ReplyKeyboardRemove(true)
+                    )
+                }
             }
 
             operatorService.findOperator(chatId) != null -> {
                 val operator = operatorService.findOperator(chatId)
-                operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
-                sendResponse(
-                    chatId,
-                    "hello",
-                    operator?.fullName
-                )
-                sendReplyMarkUp(
-                    chatId,
-                    "start.work",
-                    "sent.stark.work"
-                )
+                if (userService.getUserStep(chatId) == Status.OPERATOR_INACTIVE) {
+                    operatorService.setOperatorStep(chatId, Status.OPERATOR_START_WORK)
+                    sendResponse(
+                        chatId,
+                        "hello",
+                        operator?.fullName
+                    )
+                    sendReplyMarkUp(
+                        chatId,
+                        "start.work",
+                        "sent.stark.work"
+                    )
+                }
             }
 
             else -> {
@@ -509,9 +513,9 @@ class BotHandler(
             } catch (tae: TelegramApiException) {
                 tae.message?.let { item ->
                     if (item.contains("Forbidden: bot was blocked by the user")) {
-                        userService.setUserStep(it.chatId, Status.USER_BLOCKED)
                         userService.deleteQueue(it.chatId)
                         userService.deleteMessage(it.chatId)
+                        userService.setUserStep(it.chatId, Status.USER_WRITE_MESSAGE)
                         sendResponse(chatId, "user.blocked.queue")
                         startWork(chatId)
                     }
@@ -742,7 +746,8 @@ class BotHandler(
             } catch (tae: TelegramApiException) {
                 tae.message?.let {
                     if (it.contains("Forbidden: bot was blocked by the user")) {
-                        userService.setUserStep(chatId, Status.USER_BLOCKED)
+                        userService.setUserStep(chatId, Status.USER_WRITE_MESSAGE)
+                        userService.addRatingScore(0, chatId)
                     }
                 }
             }
